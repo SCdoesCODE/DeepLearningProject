@@ -25,15 +25,25 @@ image_array = sess.run(image)
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="Deep Learning Project-aeaa014969e8.json"
 
 bucket_name = "gcs-public-data--healthcare-nih-chest-xray"
+project_name = "Deep Learning Project"
 project_id = "deep-learning-project-275614"
 source_blob_name = "source-blob-name"
 destination_file_name = "gs://gcs-public-data--healthcare-nih-chest-xray/png/00000001_000.png"
-
+'''
 client = storage.Client()
 bucket = client.bucket(bucket_name, user_project=project_id)
 blob = storage.Blob('gs://gcs-public-data--healthcare-nih-chest-xray/png/00000001_000.png', bucket)
 with open('image.png') as file_obj:
     client.download_blob_to_file(blob, file_obj)
+'''
+# Initialise a client
+storage_client = storage.Client(project_name)
+# Create a bucket object for our bucket
+bucket = storage_client.bucket(bucket_name, user_project=project_id)
+# Create a blob object from the filepath
+blob = bucket.blob("gs://gcs-public-data--healthcare-nih-chest-xray/png/00000001_000.png")
+# Download the file to a destination
+blob.download_to_filename("image.png")
 #for blob in bucket.list_blobs():
 #    print blob.name
 
