@@ -1,3 +1,21 @@
+"""
+sentdex tutorial
+
+https://pythonprogramming.net/convolutional-neural-network-deep-learning-python-tensorflow-keras/
+
+annan bra tutorial som gör typ precis det vi vill göra?
+
+https://towardsdatascience.com/detecting-covid-19-induced-pneumonia-from-chest-x-rays-with-transfer-learning-an-implementation-311484e6afc1
+
+
+google cloud nih dataset
+https://cloud.google.com/healthcare/docs/resources/public-datasets/nih-chest
+
+
+loada in datasetet på google cloud
+https://towardsdatascience.com/automl-and-big-data-980e24fba6fa
+"""
+
 import numpy as np
 import tensorflow as tf
 from tensorflow_io.bigquery import BigQueryClient
@@ -10,8 +28,10 @@ import cv2
 
 '''
 PROJECT_ID = "deep-learning-project-275614"
-DATASET_GCP_PROJECT_ID = "chc-nih-chest-xray"
-DATASET_ID = "nih-chest-xray"
+
+DATASET_GCP_PROJECT_ID = "chc-nih-chest-xray"
+
+DATASET_ID = "nih-chest-xray"
 TABLE_ID = "chc-nih-chest-xray:nih_chest_xray.nih_chest_xray"
 
 sess = tf.compat.v1.Session()
