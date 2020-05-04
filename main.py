@@ -18,7 +18,7 @@ https://towardsdatascience.com/automl-and-big-data-980e24fba6fa
 
 import numpy as np
 import tensorflow as tf
-from tensorflow_io.bigquery import BigQueryClient
+#from tensorflow_io.bigquery import BigQueryClient
 from keras.preprocessing import image
 from google.cloud import storage
 import matplotlib.pyplot as plt
@@ -42,26 +42,56 @@ image = tf.image.decode_jpeg(image)
 image_array = sess.run(image)
 '''
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/home/emilelm/Kurser/DeepLearningProject/Deep Learning Project-98e1d6697904.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="Deep Learning Project-98e1d6697904.json"
 
 bucket_name = "gcs-public-data--healthcare-nih-chest-xray"
 project_name = "Deep Learning Project"
 project_id = "deep-learning-project-275614"
 source_blob_name = "source-blob-name"
-destination_file_name = "gs://gcs-public-data--healthcare-nih-chest-xray/png/00000001_000.png"
+destination_file_name = "png/00000001_000.png"
 
-'''
+
+def download_blob(bucket_name, source_blob_name, destination_file_name):
+    """Downloads a blob from the bucket."""
+    storage_client = storage.Client()
+    try:
+        bucket = storage_client.bucket(bucket_name, user_project = project_id)
+        #blob_names = [blob.name for blob in bucket.list_blobs()]
+        #print(blob_names)
+    except:
+        print('Sorry, that bucket does not exist!')
+    blob = bucket.blob(source_blob_name)
+
+    blob.download_to_filename(destination_file_name)
+
+    print('Blob {} downloaded to {}.'.format(
+        source_blob_name,
+        destination_file_name))
+
+download_blob(bucket_name, destination_file_name, 'test.png')
+
+"""
 client = storage.Client()
 bucket = client.bucket(bucket_name, user_project=project_id)
 blob = storage.Blob('gs://gcs-public-data--healthcare-nih-chest-xray/png/00000001_000.png', bucket)
+print(blob.name)
 with open('image.png') as file_obj:
     client.download_blob_to_file(blob, file_obj)
-'''
 
+"""
+
+
+
+"""
 client = storage.Client()
 bucket = client.bucket(bucket_name, user_project=project_id)
 blob = bucket.blob(destination_file_name)
 blob.download_to_filename('image.png')
+
+"""
+
+
+
 
 '''
 # Initialise a client
