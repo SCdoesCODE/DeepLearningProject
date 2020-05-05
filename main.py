@@ -26,21 +26,7 @@ import time
 import os
 import cv2
 
-'''
-PROJECT_ID = "deep-learning-project-275614"
 
-DATASET_GCP_PROJECT_ID = "chc-nih-chest-xray"
-
-DATASET_ID = "nih-chest-xray"
-TABLE_ID = "chc-nih-chest-xray:nih_chest_xray.nih_chest_xray"
-
-sess = tf.compat.v1.Session()
-
-image_path = 'gs://gcs-public-data--healthcare-nih-chest-xray/png/00000001_000.png?userProject=deep-learning-project-275614'
-image = tf.io.read_file(image_path)
-image = tf.image.decode_jpeg(image)
-image_array = sess.run(image)
-'''
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="Deep Learning Project-98e1d6697904.json"
 
@@ -48,120 +34,38 @@ bucket_name = "gcs-public-data--healthcare-nih-chest-xray"
 project_name = "Deep Learning Project"
 project_id = "deep-learning-project-275614"
 source_blob_name = "source-blob-name"
-destination_file_name = "png/00000001_000.png"
+destination_file_name = "png/"
 
 
-def download_blob(bucket_name, source_blob_name, destination_file_name):
-    """Downloads a blob from the bucket."""
-    storage_client = storage.Client()
-    try:
-        bucket = storage_client.bucket(bucket_name, user_project = project_id)
-        #blob_names = [blob.name for blob in bucket.list_blobs()]
-        #print(blob_names)
-    except:
-        print('Sorry, that bucket does not exist!')
-    blob = bucket.blob(source_blob_name)
+from google.cloud import storage
 
-    blob.download_to_filename(destination_file_name)
-
-    print('Blob {} downloaded to {}.'.format(
-        source_blob_name,
-        destination_file_name))
-
-download_blob(bucket_name, destination_file_name, 'test.png')
-
-"""
-client = storage.Client()
-bucket = client.bucket(bucket_name, user_project=project_id)
-blob = storage.Blob('gs://gcs-public-data--healthcare-nih-chest-xray/png/00000001_000.png', bucket)
-print(blob.name)
-with open('image.png') as file_obj:
-    client.download_blob_to_file(blob, file_obj)
-
-"""
+import numpy as np
+import cv2
 
 
 
-"""
-client = storage.Client()
-bucket = client.bucket(bucket_name, user_project=project_id)
-blob = bucket.blob(destination_file_name)
-blob.download_to_filename('image.png')
+def load_data(bucket_name):
+    bucket = storage.Client().bucket(bucket_name, user_project = project_id)
 
-"""
+    flattened_images = []
+    iterator = 0
+    for index,blob in enumerate(bucket.list_blobs()):
+        if blob.name.endswith(".png"):
+            flattened_images.append(cv2.imdecode(np.asarray(bytearray(blob.download_as_string()), dtype=np.uint8), 0).flatten())
+            #image = cv2.imdecode(np.asarray(bytearray(blob.download_as_string()), dtype=np.uint8), 0)
+            #plt.imshow(image, cmap='gray')  # graph it
+            #plt.show()  # display!
+            if(index%100 == 0):
+                print(index)
 
-
-
-
-'''
-# Initialise a client
-storage_client = storage.Client(project_name)
-# Create a bucket object for our bucket
-bucket = storage_client.bucket(bucket_name, user_project=project_id)
-# Create a blob object from the filepath
-blob = bucket.blob("gs://gcs-public-data--healthcare-nih-chest-xray/png/00000001_000.png")
-# Download the file to a destination
-blob.download_to_filename("image.png")
-'''
-#for blob in bucket.list_blobs():
-#    print blob.name
+    return flattened_images
 
 
-#blob = bucket.blob(source_blob_name)
-#blob.download_to_filename(destination_file_name)
+X = load_data(bucket_name)
 
-#print(
-#    "Blob {} downloaded to {} using a requester-pays request.".format(
-#        source_blob_name, destination_file_name
-#    )
-#)
 
-#filenames = tf.io.gfile.glob("gs://gcs-public-data--healthcare-nih-chest-xray")
-'''
-def run_benchmark(num_iterations):
-  batch_size = 2048
-  client = BigQueryClient()
-  read_session = client.read_session(
-      "projects/" + PROJECT_ID,
-      DATASET_GCP_PROJECT_ID, TABLE_ID, DATASET_ID,
-      ["title",
-       "id",
-       "num_characters",
-       "language",
-       "timestamp",
-       "wp_namespace",
-       "contributor_username",
-       "PatientID"],
-      [tf.string,
-       tf.int64,
-       tf.int64,
-       tf.string,
-       tf.int64,
-       tf.int64,
-       tf.string,
-       tf.string],
-      requested_streams=10
-  )
+np.savetxt("flattened_images.txt",X)
 
-  #print read_session.PatientID
+#x = list(x)
 
-  #dataset = read_session.parallel_read_rows(sloppy=True).batch(batch_size)
-
-  itr = dataset.make_one_shot_iterator()
-
-  n = 0
-  mini_batch = 100
-  for i in range(num_iterations // mini_batch):
-    local_start = time.time()
-    start_n = n
-    for j in range(mini_batch):
-      n += batch_size
-      batch = itr.get_next()
-
-    local_end = time.time()
-    print('Processed %d entries in %f seconds. [%f] examples/s' % (
-        n - start_n, local_end - local_start,
-        (mini_batch * batch_size) / (local_end - local_start)))
-    '''
-
-#run_benchmark(10000)
+print(X[0])
