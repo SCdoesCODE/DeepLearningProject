@@ -42,11 +42,13 @@ def load_data(bucket_name):
 
     for blob in bucket.list_blobs():
         if blob.name.endswith(".png"):
+            # Fix ints instead of floats (or try to fix np array stuff)
             image = cv2.imdecode(np.asarray(bytearray(blob.download_as_string()), dtype=np.uint8), 0).flatten()
-            np.savetxt("flattened_image.txt", image)
+            #np.savetxt("flattened_image.txt", image)
             # [4:-4] removes the file ending and the folder from the path
-            private_blob = private_bucket.blob("flattened_images/" + blob.name[4:-4] + ".txt")
-            private_blob.upload_from_filename("flattened_image.txt")
+            #private_blob = private_bucket.blob("flattened_images/" + blob.name[4:-4] + ".txt")
+            #private_blob.upload_from_filename("flattened_image.txt")
+            break
 
 def load_image(source_name):
     storage_client = storage.Client()
@@ -56,6 +58,15 @@ def load_image(source_name):
     #image = cv2.imdecode(array, 0)
     #plt.imshow(array, cmap="gray")
     #plt.show()
+
+'''
+storage_client = storage.Client()
+private_bucket = storage_client.bucket(our_bucket_name, user_project = project_id)
+counter = 0
+for blob in private_bucket.list_blobs():
+    counter += 1
+print(counter)
+'''
 
 load_data(bucket_name)
 #upload_blob(our_bucket_name, "flattened_image.txt", "flattened_image.txt")
