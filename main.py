@@ -47,20 +47,19 @@ def load_data(bucket_name):
             # [4:-4] removes the file ending and the folder from the path
             private_blob = private_bucket.blob("flattened_images/" + blob.name[4:-4] + ".txt")
             private_blob.upload_from_filename("flattened_image.txt")
-            break
 
 def load_image(source_name):
     storage_client = storage.Client()
     bucket = storage_client.bucket(our_bucket_name, user_project = project_id)
     blob = bucket.blob(source_name)
     array = np.array(blob.download_as_string().splitlines()).astype(np.float).reshape(1024,1024)
-    image = cv2.imdecode(array, 0)
-    plt.imshow(image)
-    plt.show()
+    #image = cv2.imdecode(array, 0)
+    #plt.imshow(array, cmap="gray")
+    #plt.show()
 
-#load_data(bucket_name)
+load_data(bucket_name)
 #upload_blob(our_bucket_name, "flattened_image.txt", "flattened_image.txt")
-load_image("flattened_images/00000001_000.txt")
+#load_image("flattened_images/00000001_000.txt")
 #strtest = "2.020000000000000000e+02\n2.080000000000000000e+02\n2.080000000000000000e+02"
 #array = strtest.splitlines()
 #nparray = np.array(array).astype(np.float)
