@@ -26,46 +26,42 @@ import time
 import os
 import cv2
 
-
-
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="Deep Learning Project-98e1d6697904.json"
 
+our_bucket_name = "nih-chest-x-rays"
 bucket_name = "gcs-public-data--healthcare-nih-chest-xray"
 project_name = "Deep Learning Project"
 project_id = "deep-learning-project-275614"
 source_blob_name = "source-blob-name"
 destination_file_name = "png/"
 
-
-from google.cloud import storage
-
-import numpy as np
-import cv2
-
-
-
 def load_data(bucket_name):
-    bucket = storage.Client().bucket(bucket_name, user_project = project_id)
+    storage_client = storage.Client()
+    private_bucket = storage_client.bucket(our_bucket_name, user_project = project_id)
+    bucket = storage_client.bucket(bucket_name, user_project = project_id)
 
-    flattened_images = []
-    iterator = 0
-    for index,blob in enumerate(bucket.list_blobs()):
+    for blob in bucket.list_blobs():
         if blob.name.endswith(".png"):
-            flattened_images.append(cv2.imdecode(np.asarray(bytearray(blob.download_as_string()), dtype=np.uint8), 0).flatten())
-            #image = cv2.imdecode(np.asarray(bytearray(blob.download_as_string()), dtype=np.uint8), 0)
-            #plt.imshow(image, cmap='gray')  # graph it
-            #plt.show()  # display!
-            if(index%100 == 0):
-                print(index)
+            image = cv2.imdecode(np.asarray(bytearray(blob.download_as_string()), dtype=np.uint8), 0).flatten()
+            np.savetxt("flattened_image.txt", image)
+            # [4:-4] removes the file ending and the folder from the path
+            private_blob = private_bucket.blob("flattened_images/" + blob.name[4:-4] + ".txt")
+            private_blob.upload_from_filename("flattened_image.txt")
+            break
 
-    return flattened_images
+def load_image(source_name):
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(our_bucket_name, user_project = project_id)
+    blob = bucket.blob(source_name)
+    array = blob.download_as_string().reshape(1024, 1024)
+    print(array)
+    #image = cv2.imdecode(array, cv2.CV_LOAD_IMAGE_COLOR)
+    #plt.imshow(image, cmap="gray")
+    #plt.show()
+    #print(array.shape)
 
+#load_data(bucket_name)
+#upload_blob(our_bucket_name, "flattened_image.txt", "flattened_image.txt")
+#load_image("flattened_images/00000001_000.txt")
 
-X = load_data(bucket_name)
-
-
-np.savetxt("flattened_images.txt",X)
-
-#x = list(x)
-
-print(X[0])
+#np.savetxt("flattened_images.txt",X)
