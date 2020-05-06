@@ -53,8 +53,8 @@ def load_image(source_name):
     storage_client = storage.Client()
     bucket = storage_client.bucket(our_bucket_name, user_project = project_id)
     blob = bucket.blob(source_name)
-    array = np.asarray(blob.download_as_string().splitlines()).reshape(1024,1024)
-    image = cv2.imdecode(np.float32(array), 0)
+    array = np.array(blob.download_as_string().splitlines()).astype(np.float).reshape(1024,1024)
+    image = cv2.imdecode(array, 0)
     plt.imshow(image)
     plt.show()
 
@@ -63,7 +63,7 @@ def load_image(source_name):
 load_image("flattened_images/00000001_000.txt")
 #strtest = "2.020000000000000000e+02\n2.080000000000000000e+02\n2.080000000000000000e+02"
 #array = strtest.splitlines()
-#nparray = np.asarray(array)
+#nparray = np.array(array).astype(np.float)
 #print(nparray)
 
 #np.savetxt("flattened_images.txt",X)
