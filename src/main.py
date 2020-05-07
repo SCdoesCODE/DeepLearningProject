@@ -18,7 +18,6 @@ https://towardsdatascience.com/automl-and-big-data-980e24fba6fa
 
 import numpy as np
 import tensorflow as tf
-#from tensorflow_io.bigquery import BigQueryClient
 from keras.preprocessing import image
 from google.cloud import storage
 import matplotlib.pyplot as plt
@@ -43,7 +42,11 @@ def load_data(bucket_name):
     for blob in bucket.list_blobs():
         if blob.name.endswith(".png"):
             # Fix ints instead of floats (or try to fix np array stuff)
-            image = cv2.imdecode(np.asarray(bytearray(blob.download_as_string()), dtype=np.uint8), 0).flatten()
+            #image = cv2.imdecode(np.frombuffer(bytearray(blob.download_as_string()), dtype=np.uint8),0)
+            image = tf.io.decode_png(np.frombuffer(bytearray(blob.download_as_string()), dtype=np.uint8),channels=1)
+            new_image = tf.image.resize_images(image, (256, 256))
+            plt.imshow(new_image, cmap="gray")
+            plt.show()
             #np.savetxt("flattened_image.txt", image)
             # [4:-4] removes the file ending and the folder from the path
             #private_blob = private_bucket.blob("flattened_images/" + blob.name[4:-4] + ".txt")
