@@ -29,4 +29,4 @@ def process_path(file_path):
 image_paths = tf.data.Dataset.list_files("~/nih-chest-xrays/images_*/images/*")
 
 for image_path in image_paths.take(10):
-    print(image_path.numpy())
+    print(image_path)
