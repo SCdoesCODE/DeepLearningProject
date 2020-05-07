@@ -15,14 +15,16 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D
 
 labels=[]
 def load_labels():
+    global labels
     labels = pandas.read_csv("/home/emil.elmarsson/nih-chext-xrays/Data_Entry_2017.csv", usecols=["Image Index", "Finding Labels"])
 
 def get_label(img_path):
-    img_name = tf.strings.split(img_path, os.path.sep)[-1]
-    for label in labels:
-        if img_name == label[0]:
-            return label[1]
-    return None
+    img_name = tf.strings.split(img_path, os.path.sep)[-1].numpy().decode('utf-8')
+    try:
+        return labels.loc[labels['Image Index'] == img_name]['Finding Labels'].values[0]
+    except:
+        print("Error: Could not find image label.")
+        return None
 
 def decode_img(img):
     # convert compressed string to a uint8 tensor
@@ -44,4 +46,4 @@ def process_path(file_path):
 #    print(image_path.numpy())
 
 load_labels()
-get_label("/home/emil.elmarsson/nih-chest-xrays/images_0001/00000001_000.png")
+print(get_label("/home/emil.elmarsson/nih-chest-xrays/images_0001/00000001_000.png"))
