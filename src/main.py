@@ -26,7 +26,7 @@ import time
 import os
 import cv2
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="Deep Learning Project-98e1d6697904.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="../service-accounts/Deep Learning Project-98e1d6697904.json"
 
 our_bucket_name = "nih-chest-x-rays"
 bucket_name = "gcs-public-data--healthcare-nih-chest-xray"
