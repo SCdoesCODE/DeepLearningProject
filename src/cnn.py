@@ -21,7 +21,7 @@ def get_label(img_path):
     img_name = tf.strings.split(img_path, os.path.sep)[-1]
     for label in labels:
         if img_name == label[0]:
-	    return label[1]
+            return label[1]
     return None
 
 def decode_img(img):
