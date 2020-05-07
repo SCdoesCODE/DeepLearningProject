@@ -4,13 +4,26 @@ import matplotlib.pyplot as plt
 import time
 import os
 import cv2
+import pandas
+import pickle
 import tensorflow as tf
 from tensorflow.keras.datasets import cifar10
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten
 from tensorflow.keras.layers import Conv2D, MaxPooling2D
-import pickle
+
+labels = []
+def load_labels():
+    columns = ['Image Index', 'Finding Labels']
+    labels = pandas.read_csv("/home/emil.elmarsson/nih-chext-xrays/Data_Entry_2017.csv", names=columns)
+
+def get_label(img_path):
+    label_file =
+    # convert the path to a list of path components
+    parts = tf.strings.split(file_path, os.path.sep)
+    # The second to last is the class-directory
+    return parts[-2] == CLASS_NAMES
 
 def decode_img(img):
     # convert compressed string to a uint8 tensor
@@ -26,7 +39,10 @@ def process_path(file_path):
     img = decode_img(img)
     return img, label
 
-image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
+#image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
 
-for image_path in image_paths.take(10):
-    print(image_path.numpy())
+#for image_path in image_paths.take(10):
+#    print(image_path.numpy())
+
+load_labels()
+print labels
