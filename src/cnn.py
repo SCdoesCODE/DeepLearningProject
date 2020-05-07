@@ -26,7 +26,7 @@ def process_path(file_path):
     img = decode_img(img)
     return img, label
 
-image_paths = tf.data.Dataset.list_files("images_*/images/*")
+image_paths = tf.data.Dataset.list_files("~/nih-chest-xrays/images_*/images/*")
 
 for image_path in image_paths.take(10):
     print(image_path.numpy())
