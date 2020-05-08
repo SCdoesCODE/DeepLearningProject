@@ -53,13 +53,27 @@ def process_path(img_path):
     img = decode_img(img)
     return img, label
 
+# Split the dataset into training and test data
+def split_dataset(dataset, test_data_fraction):
+    test_data_percent = round(test_data_fraction * 100)
+    if not (0 <= test_data_percent <= 100):
+        raise ValueError("Test data fraction must be ∈ [0,1]")
+
+    dataset = dataset.enumerate()
+    train_dataset = dataset.filter(lambda f, data: f % 100 > test_data_percent)
+    test_dataset = dataset.filter(lambda f, data: f % 100 <= test_data_percent)
+
+    # remove enumeration
+    train_data = train_dataset.map(lambda f, data: data)
+    test_data = test_dataset.map(lambda f, data: data)
+
+    return train_data, test_data
+
 init()
 
 EPOCHS = 10
 DATASET_SIZE = len(names_and_labels.index)
 BATCH_SIZE = 100
-TRAIN_SIZE = int(0.7 * DATASET_SIZE)
-TEST_SIZE = DATASET_SIZE - TRAIN_SIZE
 
 # Loading image paths
 image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
@@ -67,9 +81,8 @@ image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/i
 # Mapping image paths to the respective image and label
 dataset = image_paths.map(lambda path: tf.py_function(func=process_path, inp=[path], Tout=(tf.float32, tf.string)), num_parallel_calls=1)
 
-#dataset = dataset.shuffle()
-#train_dataset = dataset.take(TRAIN_SIZE)
-#test_dataset = dataset.skip(TRAIN_SIZE).take(TEST_SIZE)
+# Splitting data
+train_data, test_data = split_dataset(dataset=dataset, test_data_fraction=0.3)
 
 # Create the model
 #model = Sequential()
