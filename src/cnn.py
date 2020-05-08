@@ -3,6 +3,7 @@ from google.cloud import storage
 import matplotlib.pyplot as plt
 import time
 import os
+from os.path import expanduser
 import cv2
 import pandas
 import pickle
@@ -13,11 +14,20 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten
 from tensorflow.keras.layers import Conv2D, MaxPooling2D
 
+classes=[]
 names_and_labels=[]
 # Loading all labels from the CSV file
-def load_names_and_labels():
+def init():
+    global classes
     global names_and_labels
-    names_and_labels = pandas.read_csv("~/nih-chext-xrays/Data_Entry_2017.csv", usecols=["Image Index", "Finding Labels"])
+
+    # Loading class names
+    with open('/home/emil.elmarsson/nih-chest-xrays/classes.txt', 'r') as f:
+        classes = np.fromstring(f.read(), sep='\n')
+    print(classes)
+
+    # Loading image names and the corresponding labels
+    names_and_labels = pandas.read_csv(home + '/nih-chext-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
 
 def get_label(img_path):
     # Extracting the name from the image path
@@ -45,14 +55,26 @@ def process_path(img_path):
     img = decode_img(img)
     return img, label
 
-# Should always be at the top (loads all the labels)
-load_names_and_labels()
+init()
 
+'''
 image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
 
 # Mapping image paths to the respective image and label
 # For some reason this doesn't work (the image paths are weird Tensor objects in the process path function)
 dataset = image_paths.map(process_path)
-for image, label in dataset.take(5):
+for image, label in dataset.as_numpy_iterator().take(5):
     print("Shape:", image.numpy().shape)
     print("Label:", label)
+'''
+
+BATCH_SIZE = 32
+IMG_HEIGHT = 224
+IMG_WIDTH = 224
+'''
+dataset = image_generator.flow_from_directory(directory="~/nih-chext-xrays/images_*/images/*",
+                                              batch_size=BATCH_SIZE,
+                                              shuffle=True,
+                                              target_size=(IMG_HEIGHT, IMG_WIDTH),
+                                              classes = list(CLASS_NAMES))
+'''
