@@ -70,9 +70,10 @@ def split_dataset(dataset, test_data_fraction):
 
 init()
 
-EPOCHS = 10
-DATASET_SIZE = len(names_and_labels.index)
 BATCH_SIZE = 100
+NUM_EPOCHS = 10
+NUM_CLASSES = len(classes)
+DATASET_SIZE = len(names_and_labels.index)
 
 # Loading image paths
 image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
