@@ -3,7 +3,7 @@ from google.cloud import storage
 import matplotlib.pyplot as plt
 import time
 import os
-from os.path import expanduser
+from pathlib import Path
 import cv2
 import pandas
 import pickle
@@ -22,19 +22,18 @@ def init():
     global names_and_labels
 
     # Loading class names
-    with open('/home/emil.elmarsson/nih-chest-xrays/classes.txt', 'r') as f:
-        classes = np.fromstring(f.read(), sep='\n')
-    print(classes)
+    #classes = np.fromfile("../resources/classes.txt", sep='\n')
+    #print(classes)
 
     # Loading image names and the corresponding labels
-    names_and_labels = pandas.read_csv(home + '/nih-chext-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
+    names_and_labels = pandas.read_csv('~/nih-chext-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
 
 def get_label(img_path):
     # Extracting the name from the image path
     img_name = tf.strings.split(img_path, os.path.sep)[-1].numpy().decode('utf-8')
     try:
         # Locating the proper entry and returning its label
-        return labels.loc[labels['Image Index'] == img_name]['Finding Labels'].values[0]
+        return names_and_labels.loc[names_and_labels['Image Index'] == img_name]['Finding Labels'].values[0]
     except:
         print("Error: Could not find image label.")
         return None
@@ -49,7 +48,6 @@ def decode_img(img):
 
 # Processing a given image path, returning the image and the corresponding label
 def process_path(img_path):
-    print(img_path)
     label = get_label(img_path)
     img = tf.io.read_file(img_path)
     img = decode_img(img)
@@ -57,24 +55,11 @@ def process_path(img_path):
 
 init()
 
-'''
+# Loading image paths
 image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
 
 # Mapping image paths to the respective image and label
-# For some reason this doesn't work (the image paths are weird Tensor objects in the process path function)
-dataset = image_paths.map(process_path)
-for image, label in dataset.as_numpy_iterator().take(5):
+dataset = image_paths.map(lambda path: tf.py_function(func=process_path, inp=[path], Tout=(tf.float32, tf.string)), num_parallel_calls=1)
+for image, label in dataset.take(5):
     print("Shape:", image.numpy().shape)
     print("Label:", label)
-'''
-
-BATCH_SIZE = 32
-IMG_HEIGHT = 224
-IMG_WIDTH = 224
-'''
-dataset = image_generator.flow_from_directory(directory="~/nih-chext-xrays/images_*/images/*",
-                                              batch_size=BATCH_SIZE,
-                                              shuffle=True,
-                                              target_size=(IMG_HEIGHT, IMG_WIDTH),
-                                              classes = list(CLASS_NAMES))
-'''
