@@ -71,5 +71,15 @@ dataset = image_paths.map(lambda path: tf.py_function(func=process_path, inp=[pa
 #train_dataset = dataset.take(TRAIN_SIZE)
 #test_dataset = dataset.skip(TRAIN_SIZE).take(TEST_SIZE)
 
-model = Sequential()
+plt.figure(figsize=(10,10))
+for i, (img, label) in enumerate(dataset.take(25)):
+    plt.subplot(5,5,i+1)
+    plt.xticks([])
+    plt.yticks([])
+    plt.grid(False)
+    plt.imshow(img, cmap="gray")
+    plt.xlabel(label.numpy().decode('utf-8'))
+plt.show()
 
+# Create the model
+#model = Sequential()
