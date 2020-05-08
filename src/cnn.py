@@ -55,11 +55,21 @@ def process_path(img_path):
 
 init()
 
+EPOCHS = 10
+DATASET_SIZE = len(names_and_labels.index)
+BATCH_SIZE = 100
+TRAIN_SIZE = int(0.7 * DATASET_SIZE)
+TEST_SIZE = DATASET_SIZE - TRAIN_SIZE
+
 # Loading image paths
 image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
 
 # Mapping image paths to the respective image and label
 dataset = image_paths.map(lambda path: tf.py_function(func=process_path, inp=[path], Tout=(tf.float32, tf.string)), num_parallel_calls=1)
-for image, label in dataset.take(5):
-    print("Shape:", image.numpy().shape)
-    print("Label:", label)
+
+#dataset = dataset.shuffle()
+#train_dataset = dataset.take(TRAIN_SIZE)
+#test_dataset = dataset.skip(TRAIN_SIZE).take(TEST_SIZE)
+
+model = Sequential()
+
