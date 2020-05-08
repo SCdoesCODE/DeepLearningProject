@@ -22,8 +22,7 @@ def init():
     global names_and_labels
 
     # Loading class names
-    #classes = np.fromfile("../resources/classes.txt", sep='\n')
-    #print(classes)
+    classes = open("../resources/classes.txt").read().splitlines()
 
     # Loading image names and the corresponding labels
     names_and_labels = pandas.read_csv('~/nih-chext-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
