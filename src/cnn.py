@@ -22,8 +22,7 @@ def init():
     global names_and_labels
 
     # Loading class names
-    #classes = np.fromfile("../resources/classes.txt", sep='\n')
-    #print(classes)
+    classes = open("../resources/classes.txt").read().splitlines()
 
     # Loading image names and the corresponding labels
     names_and_labels = pandas.read_csv('~/nih-chext-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
@@ -53,13 +52,28 @@ def process_path(img_path):
     img = decode_img(img)
     return img, label
 
+# Split the dataset into training and test data
+def split_dataset(dataset, test_data_fraction):
+    test_data_percent = round(test_data_fraction * 100)
+    if not (0 <= test_data_percent <= 100):
+        raise ValueError("Test data fraction must be ∈ [0,1]")
+
+    dataset = dataset.enumerate()
+    train_dataset = dataset.filter(lambda f, data: f % 100 > test_data_percent)
+    test_dataset = dataset.filter(lambda f, data: f % 100 <= test_data_percent)
+
+    # remove enumeration
+    train_data = train_dataset.map(lambda f, data: data)
+    test_data = test_dataset.map(lambda f, data: data)
+
+    return train_data, test_data
+
 init()
 
-EPOCHS = 10
-DATASET_SIZE = len(names_and_labels.index)
 BATCH_SIZE = 100
-TRAIN_SIZE = int(0.7 * DATASET_SIZE)
-TEST_SIZE = DATASET_SIZE - TRAIN_SIZE
+NUM_EPOCHS = 10
+NUM_CLASSES = len(classes)
+DATASET_SIZE = len(names_and_labels.index)
 
 # Loading image paths
 image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
@@ -67,19 +81,8 @@ image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/i
 # Mapping image paths to the respective image and label
 dataset = image_paths.map(lambda path: tf.py_function(func=process_path, inp=[path], Tout=(tf.float32, tf.string)), num_parallel_calls=1)
 
-#dataset = dataset.shuffle()
-#train_dataset = dataset.take(TRAIN_SIZE)
-#test_dataset = dataset.skip(TRAIN_SIZE).take(TEST_SIZE)
-
-plt.figure(figsize=(10,10))
-for i, (img, label) in enumerate(dataset.take(25)):
-    plt.subplot(5,5,i+1)
-    plt.xticks([])
-    plt.yticks([])
-    plt.grid(False)
-    plt.imshow(img, cmap="gray")
-    plt.xlabel(label.numpy().decode('utf-8'))
-plt.show()
+# Splitting data
+train_data, test_data = split_dataset(dataset=dataset, test_data_fraction=0.3)
 
 # Create the model
 #model = Sequential()
