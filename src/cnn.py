@@ -8,6 +8,7 @@ import cv2
 import pandas
 import pickle
 import tensorflow as tf
+from tensorflow.keras import datasets, layers, models
 from tensorflow.keras.datasets import cifar10
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.models import Sequential
@@ -16,6 +17,7 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D
 
 classes=[]
 names_and_labels=[]
+
 # Loading all labels from the CSV file
 def init():
     global classes
@@ -25,7 +27,19 @@ def init():
     classes = open("../resources/classes.txt").read().splitlines()
 
     # Loading image names and the corresponding labels
-    names_and_labels = pandas.read_csv('~/nih-chext-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
+    #names_and_labels = pandas.read_csv('~/nih-chext-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
+    names_and_labels = pandas.read_csv('/mnt/disks/new-disk/nih-chest-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
+
+init()
+
+AUTOTUNE = tf.data.experimental.AUTOTUNE
+
+LR = 0.0001
+BATCH_SIZE = 64
+NUM_EPOCHS = 10
+NUM_CLASSES = len(classes)
+DATASET_SIZE = len(names_and_labels.index)
+SHUFFLE_BUFFER_SIZE = 1024
 
 def get_label(img_path):
     # Extracting the name from the image path
@@ -68,21 +82,56 @@ def split_dataset(dataset, test_data_fraction):
 
     return train_data, test_data
 
-init()
-
-BATCH_SIZE = 100
-NUM_EPOCHS = 10
-NUM_CLASSES = len(classes)
-DATASET_SIZE = len(names_and_labels.index)
+def prepare_dataset(dataset, is_training=True):
+    if is_training == True:
+        # This is a small dataset, only load it once, and keep it in memory.
+        dataset = dataset.cache()
+        # Shuffle the data each buffer size
+        dataset = dataset.shuffle(buffer_size=SHUFFLE_BUFFER_SIZE)
+        
+    # Batch the data for multiple steps
+    dataset = dataset.batch(BATCH_SIZE)
+    # Fetch batches in the background while the model is training.
+    dataset = dataset.prefetch(buffer_size=AUTOTUNE)
+    
+    return dataset
 
 # Loading image paths
-image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
+#image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
+image_paths = tf.data.Dataset.list_files("/mnt/disks/new-disk/nih-chest-xrays/images_*/images/*")
 
 # Mapping image paths to the respective image and label
-dataset = image_paths.map(lambda path: tf.py_function(func=process_path, inp=[path], Tout=(tf.float32, tf.string)), num_parallel_calls=1)
+dataset = image_paths.map(lambda path: tf.py_function(func=process_path, inp=[path], Tout=(tf.float32, tf.string)), num_parallel_calls=AUTOTUNE)
 
 # Splitting data
 train_data, test_data = split_dataset(dataset=dataset, test_data_fraction=0.3)
 
+# Caching, batching, etc.
+train_data = prepare_dataset(train_data)
+
+test_images = test_data.map(lambda image, _: image)
+test_labels = test_data.map(lambda _, label: label)
+
 # Create the model
-#model = Sequential()
+model = Sequential()
+model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(256,256,1)))
+model.add(layers.MaxPooling2D((2, 2)))
+#model.add(layers.Conv2D(64, (3,3), activation='relu'))
+#model.add(layers.MaxPooling2D((2, 2)))
+#model.add(layers.Conv2D(64, (3,3), activation='relu'))
+#model.add(layers.MaxPooling2D((2, 2)))
+
+model.add(layers.Flatten())
+model.add(layers.Dense(64, activation='softmax'))
+model.add(layers.Dense(NUM_CLASSES))
+
+model.summary()
+
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LR),
+              loss="binary_crossentropy",
+              metrics=['accuracy'])
+
+history = model.fit(train_data, 
+                    epochs=10, 
+                    batch_size=BATCH_SIZE,
+                    validation_data=(test_images, test_labels))
