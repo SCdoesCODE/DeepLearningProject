@@ -68,6 +68,8 @@ validation_generator = train_datagen.flow_from_dataframe(
     color_mode="grayscale",
     subset='validation')
 
+# Make a test generator as well to evaluate the model after training. It seems we need to move some images into a separate directory for that.
+
 # Create the model
 model = Sequential()
 model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,1)))
