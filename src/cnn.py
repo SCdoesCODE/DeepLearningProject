@@ -29,6 +29,8 @@ def init():
     # Loading image names and the corresponding labels
     #names_and_labels = pandas.read_csv('~/nih-chext-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
     names_and_labels = pandas.read_csv('/mnt/disks/new-disk/nih-chest-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
+    # Making sure that multivalues are formatted correctly
+    names_and_labels["Finding Labels"]=names_and_labels["Finding Labels"].apply(lambda x:x.split("|"))
 
 init()
 
@@ -40,6 +42,8 @@ NUM_EPOCHS = 10
 NUM_CLASSES = len(classes)
 DATASET_SIZE = len(names_and_labels.index)
 SHUFFLE_BUFFER_SIZE = 1024
+IMG_HEIGHT = 256
+IMG_WIDTH = 256
 
 def get_label(img_path):
     # Extracting the name from the image path
@@ -97,23 +101,33 @@ def prepare_dataset(dataset, is_training=True):
     
     return dataset
 
-# Loading image paths
-#image_paths = tf.data.Dataset.list_files("/home/emil.elmarsson/nih-chext-xrays/images_*/images/*")
-image_paths = tf.data.Dataset.list_files("/mnt/disks/new-disk/nih-chest-xrays/images_*/images/*")
+train_dir = "/mnt/disks/new-disk/nih-chest-xrays/images/"
 
-# Mapping image paths to the respective image and label
-dataset = image_paths.map(lambda path: tf.py_function(func=process_path, inp=[path], Tout=(tf.float32, tf.int64)), num_parallel_calls=AUTOTUNE)
+train_datagen = ImageDataGenerator(rescale=1./255,
+    validation_split=0.3)
 
-# Splitting data
-train_data, test_data = split_dataset(dataset=dataset, test_data_fraction=0.3)
+train_generator = train_datagen.flow_from_dataframe(
+    dataframe=names_and_labels,
+    directory=train_dir,
+    x_col='Image Index',
+    y_col='Finding Labels',
+    target_size=(IMG_HEIGHT, IMG_WIDTH),
+    color_mode="grayscale",
+    subset='training')
 
-# Caching, batching, etc.
-train_data = prepare_dataset(train_data)
-test_data = prepare_dataset(test_data)
+validation_generator = train_datagen.flow_from_dataframe(
+    dataframe=names_and_labels,
+    directory=train_dir,
+    x_col='Image Index',
+    y_col='Finding Labels',
+    target_size=(IMG_HEIGHT, IMG_WIDTH),
+    color_mode="grayscale",
+    subset='validation')
 
+'''
 # Create the model
 model = Sequential()
-model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(256,256,1)))
+model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,1)))
 model.add(layers.MaxPooling2D((2, 2)))
 model.add(layers.Conv2D(64, (3,3), activation='relu'))
 model.add(layers.MaxPooling2D((2, 2)))
@@ -127,9 +141,16 @@ model.add(layers.Dense(NUM_CLASSES))
 model.summary()
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LR),
-              loss="binary_crossentropy",
+              loss="categorical_crossentropy",
               metrics=['accuracy'])
 
-history = model.fit(train_data, 
-                    epochs=NUM_EPOCHS,
-                    validation_data=test_data)
+STEP_SIZE_TRAIN=train_generator.n//train_generator.batch_size
+STEP_SIZE_VALID=validation_generator.n//validation_generator.batch_size
+#STEP_SIZE_TEST=test_generator.n//test_generator.batch_size
+history = model.fit(train_generator,
+                    steps_per_epoch=STEP_SIZE_TRAIN, 
+                    validation_data=validation_generator,
+                    validation_steps=STEP_SIZE_VALID,
+                    batch_size=BATCH_SIZE,
+                    epochs=NUM_EPOCHS)
+'''
