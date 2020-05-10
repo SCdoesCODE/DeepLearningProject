@@ -46,7 +46,8 @@ def get_label(img_path):
     img_name = tf.strings.split(img_path, os.path.sep)[-1].numpy().decode('utf-8')
     try:
         # Locating the proper entry and returning its label
-        return names_and_labels.loc[names_and_labels['Image Index'] == img_name]['Finding Labels'].values[0]
+        label_string = names_and_labels.loc[names_and_labels['Image Index'] == img_name]['Finding Labels'].values[0]
+        return classes.index(label_string)
     except:
         print("Error: Could not find image label.")
         return None
@@ -101,25 +102,23 @@ def prepare_dataset(dataset, is_training=True):
 image_paths = tf.data.Dataset.list_files("/mnt/disks/new-disk/nih-chest-xrays/images_*/images/*")
 
 # Mapping image paths to the respective image and label
-dataset = image_paths.map(lambda path: tf.py_function(func=process_path, inp=[path], Tout=(tf.float32, tf.string)), num_parallel_calls=AUTOTUNE)
+dataset = image_paths.map(lambda path: tf.py_function(func=process_path, inp=[path], Tout=(tf.float32, tf.int64)), num_parallel_calls=AUTOTUNE)
 
 # Splitting data
 train_data, test_data = split_dataset(dataset=dataset, test_data_fraction=0.3)
 
 # Caching, batching, etc.
 train_data = prepare_dataset(train_data)
-
-test_images = test_data.map(lambda image, _: image)
-test_labels = test_data.map(lambda _, label: label)
+test_data = prepare_dataset(test_data)
 
 # Create the model
 model = Sequential()
 model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(256,256,1)))
 model.add(layers.MaxPooling2D((2, 2)))
-#model.add(layers.Conv2D(64, (3,3), activation='relu'))
-#model.add(layers.MaxPooling2D((2, 2)))
-#model.add(layers.Conv2D(64, (3,3), activation='relu'))
-#model.add(layers.MaxPooling2D((2, 2)))
+model.add(layers.Conv2D(64, (3,3), activation='relu'))
+model.add(layers.MaxPooling2D((2, 2)))
+model.add(layers.Conv2D(64, (3,3), activation='relu'))
+model.add(layers.MaxPooling2D((2, 2)))
 
 model.add(layers.Flatten())
 model.add(layers.Dense(64, activation='softmax'))
@@ -132,6 +131,5 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LR),
               metrics=['accuracy'])
 
 history = model.fit(train_data, 
-                    epochs=10, 
-                    batch_size=BATCH_SIZE,
-                    validation_data=(test_images, test_labels))
+                    epochs=NUM_EPOCHS,
+                    validation_data=test_data)
