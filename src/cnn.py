@@ -45,62 +45,6 @@ SHUFFLE_BUFFER_SIZE = 1024
 IMG_HEIGHT = 256
 IMG_WIDTH = 256
 
-def get_label(img_path):
-    # Extracting the name from the image path
-    img_name = tf.strings.split(img_path, os.path.sep)[-1].numpy().decode('utf-8')
-    try:
-        # Locating the proper entry and returning its label
-        label_string = names_and_labels.loc[names_and_labels['Image Index'] == img_name]['Finding Labels'].values[0]
-        return classes.index(label_string)
-    except:
-        print("Error: Could not find image label.")
-        return None
-
-def decode_img(img):
-    # convert compressed string to a uint8 tensor
-    img = tf.image.decode_png(img, channels=1)
-    # convert to floats in range [0,1]
-    img = tf.image.convert_image_dtype(img, tf.float32)
-    # resize image
-    return tf.image.resize(img, [256, 256])
-
-# Processing a given image path, returning the image and the corresponding label
-def process_path(img_path):
-    label = get_label(img_path)
-    img = tf.io.read_file(img_path)
-    img = decode_img(img)
-    return img, label
-
-# Split the dataset into training and test data
-def split_dataset(dataset, test_data_fraction):
-    test_data_percent = round(test_data_fraction * 100)
-    if not (0 <= test_data_percent <= 100):
-        raise ValueError("Test data fraction must be ∈ [0,1]")
-
-    dataset = dataset.enumerate()
-    train_dataset = dataset.filter(lambda f, data: f % 100 > test_data_percent)
-    test_dataset = dataset.filter(lambda f, data: f % 100 <= test_data_percent)
-
-    # remove enumeration
-    train_data = train_dataset.map(lambda f, data: data)
-    test_data = test_dataset.map(lambda f, data: data)
-
-    return train_data, test_data
-
-def prepare_dataset(dataset, is_training=True):
-    if is_training == True:
-        # This is a small dataset, only load it once, and keep it in memory.
-        dataset = dataset.cache()
-        # Shuffle the data each buffer size
-        dataset = dataset.shuffle(buffer_size=SHUFFLE_BUFFER_SIZE)
-        
-    # Batch the data for multiple steps
-    dataset = dataset.batch(BATCH_SIZE)
-    # Fetch batches in the background while the model is training.
-    dataset = dataset.prefetch(buffer_size=AUTOTUNE)
-    
-    return dataset
-
 train_dir = "/mnt/disks/new-disk/nih-chest-xrays/images/"
 
 train_datagen = ImageDataGenerator(rescale=1./255,
@@ -124,7 +68,6 @@ validation_generator = train_datagen.flow_from_dataframe(
     color_mode="grayscale",
     subset='validation')
 
-'''
 # Create the model
 model = Sequential()
 model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,1)))
@@ -153,4 +96,3 @@ history = model.fit(train_generator,
                     validation_steps=STEP_SIZE_VALID,
                     batch_size=BATCH_SIZE,
                     epochs=NUM_EPOCHS)
-'''

@@ -10,5 +10,6 @@ Effusion
 Pneumonia
 Pleural_thickening
 Cardiomegaly
-Nodule Mass
+Nodule
+Mass
 Hernia
