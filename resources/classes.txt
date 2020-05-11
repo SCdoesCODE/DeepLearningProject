@@ -8,7 +8,7 @@ Emphysema
 Fibrosis
 Effusion
 Pneumonia
-Pleural_thickening
+Pleural_Thickening
 Cardiomegaly
 Nodule
 Mass
