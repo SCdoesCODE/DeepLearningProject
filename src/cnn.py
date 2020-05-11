@@ -1,9 +1,11 @@
 import numpy as np
+from numpy.random import default_rng
 from google.cloud import storage
 #import matplotlib.pyplot as plt
 import time
 import glob
 import os
+from os.path import expanduser
 from pathlib import Path
 import cv2
 import pandas
@@ -35,8 +37,6 @@ def init():
 
 init()
 
-print(classes)
-
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 LR = 0.0001
@@ -44,22 +44,12 @@ BATCH_SIZE = 64
 NUM_EPOCHS = 10
 NUM_CLASSES = len(classes)
 DATASET_SIZE = len(names_and_labels.index)
-TRAIN_SIZE = 56000
-VAL_SIZE = 24000
+TRAIN_FRAC = 0.6
+VAL_FRAC = 0.2
+TEST_FRAC = 0.2
 SHUFFLE_BUFFER_SIZE = 1024
 IMG_HEIGHT = 256
 IMG_WIDTH = 256
-
-def get_label(img_path):
-    # Extracting the name from the image path
-    img_name = tf.strings.split(img_path, os.path.sep)[-1].numpy().decode('utf-8')
-    try:
-        # Locating the proper entry and returning its label
-        label_string = names_and_labels.loc[names_and_labels['Image Index'] == img_name]['Finding Labels'].values[0]
-        return classes.index(label_string)
-    except:
-        print("Error: Could not find image label.")
-        return None
 
 def decode_img(img):
     # convert compressed string to a uint8 tensor
@@ -67,44 +57,20 @@ def decode_img(img):
     # convert to floats in range [0,1]
     img = tf.image.convert_image_dtype(img, tf.float32)
     # resize image
-    return tf.image.resize(img, [256, 256])
+    return tf.image.resize(img, [IMG_HEIGHT, IMG_WIDTH])
 
 # Processing a given image path, returning the image and the corresponding label
 def process_path(img_path):
-    #label = get_label(img_path)
     img = tf.io.read_file(img_path)
     img = decode_img(img)
     return img
 
-# Split the dataset into training and test data
-def split_dataset(dataset, test_data_fraction):
-    test_data_percent = round(test_data_fraction * 100)
-    if not (0 <= test_data_percent <= 100):
-        raise ValueError("Test data fraction must be ∈ [0,1]")
-
-    dataset = dataset.enumerate()
-    train_dataset = dataset.filter(lambda f, data: f % 100 > test_data_percent)
-    test_dataset = dataset.filter(lambda f, data: f % 100 <= test_data_percent)
-
-    # remove enumeration
-    train_data = train_dataset.map(lambda f, data: data)
-    test_data = test_dataset.map(lambda f, data: data)
-
-    return train_data, test_data
-
-def prepare_for_training(dataset):
-    #dataset = dataset.cache()
-
-    #dataset = dataset.shuffle(buffer_size=SHUFFLE_BUFFER_SIZE)
-
-    #dataset = dataset.repeat()    
-
+def prepare_dataset(dataset):
     dataset = dataset.batch(BATCH_SIZE)
-    
     dataset = dataset.prefetch(buffer_size=AUTOTUNE)
-    
     return dataset
 
+# Takes an array of label names and returns the one-hot encoding label
 def one_hot_representation(labels):
     one_hot = np.zeros(NUM_CLASSES)
     for label in labels:
@@ -112,42 +78,67 @@ def one_hot_representation(labels):
         one_hot[index] = 1
     return one_hot
 
-def transform_labels(labels):
+# One-hot encodes all labels using helper function above
+def one_hot_encode_labels(labels):
     new_labels = np.zeros((len(labels), NUM_CLASSES))
     for i,label in enumerate(labels):
         new_labels[i] = one_hot_representation(label)
     return new_labels
 
-train_dir = "/home/emil.elmarsson/nih-chest-xrays/images/train/"
-test_dir = "/home/emil.elmarsson/nih-chest-xrays/images/test/"
+def create_data():
+    image_path = expanduser("~") + "/nih-chest-xrays/images/"
 
-train_names = np.array(os.listdir(train_dir))
-test_names = np.array(os.listdir(test_dir))
+    # Random list of file indices to ensure that the distribution of the training, validation and test datasets varies over different runs
+    file_indices = default_rng().choice(DATASET_SIZE, size=DATASET_SIZE, replace=False)
 
-train_paths = np.vectorize(lambda path: train_dir + path)(train_names)
-test_paths = np.vectorize(lambda path: test_dir + path)(test_names)
+    # Splitting the indices based on the fractions given to each dataset
+    [train_indices,val_indices,test_indices] = np.split(file_indices, [int(DATASET_SIZE*TRAIN_FRAC), int(DATASET_SIZE*(TRAIN_FRAC+VAL_FRAC))])
 
-train_images = tf.data.Dataset.from_tensor_slices(train_paths).map(process_path)
-test_images = tf.data.Dataset.from_tensor_slices(test_paths).map(process_path)
+    # Getting the filenames from the file indices
+    train_names = names_and_labels.iloc[train_indices]['Image Index'].to_numpy()
+    val_names = names_and_labels.iloc[val_indices]['Image Index'].to_numpy()
+    test_names = names_and_labels.iloc[test_indices]['Image Index'].to_numpy()
 
-train_labels = tf.data.Dataset.from_tensor_slices(transform_labels(names_and_labels[names_and_labels['Image Index'].isin(train_names)]['Finding Labels'].to_numpy()))
-test_labels = tf.data.Dataset.from_tensor_slices(transform_labels(names_and_labels[names_and_labels['Image Index'].isin(test_names)]['Finding Labels'].to_numpy()))
+    # Creating the full filepaths
+    name_to_path = np.vectorize(lambda name: image_path + name)
+    train_paths = name_to_path(train_names)
+    val_paths = name_to_path(val_names)
+    test_paths = name_to_path(test_names)
 
-train_ds = prepare_for_training(tf.data.Dataset.zip((train_images, train_labels)))
-test_ds = prepare_for_training(tf.data.Dataset.zip((test_images, test_labels)))
+    # Mapping the filepaths to images
+    train_images = tf.data.Dataset.from_tensor_slices(train_paths).map(process_path)
+    val_images = tf.data.Dataset.from_tensor_slices(val_paths).map(process_path)
+    test_images = tf.data.Dataset.from_tensor_slices(test_paths).map(process_path)
 
-# Create the model
-model = Sequential()
-model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,1)))
-model.add(layers.MaxPooling2D((2, 2)))
-model.add(layers.Conv2D(64, (3,3), activation='relu'))
-model.add(layers.MaxPooling2D((2, 2)))
-model.add(layers.Conv2D(64, (3,3), activation='relu'))
-model.add(layers.MaxPooling2D((2, 2)))
+    # Mapping the filenames to labels
+    train_labels = tf.data.Dataset.from_tensor_slices(one_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(train_names)]['Finding Labels'].to_numpy()))
+    val_labels = tf.data.Dataset.from_tensor_slices(one_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(val_names)]['Finding Labels'].to_numpy()))
+    test_labels = tf.data.Dataset.from_tensor_slices(one_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(test_names)]['Finding Labels'].to_numpy()))
 
-model.add(layers.Flatten())
-model.add(layers.Dense(64, activation='sigmoid'))
-model.add(layers.Dense(NUM_CLASSES))
+    # Preparing data for training
+    train_ds = prepare_dataset(tf.data.Dataset.zip((train_images, train_labels)))
+    val_ds = prepare_dataset(tf.data.Dataset.zip((val_images, val_labels)))
+    test_ds = tf.data.Dataset.zip((test_images, test_labels))
+
+    return train_ds, val_ds, test_ds
+
+def create_model():
+    model = Sequential()
+    model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,1)))
+    model.add(layers.MaxPooling2D((2, 2)))
+    model.add(layers.Conv2D(64, (3,3), activation='relu'))
+    model.add(layers.MaxPooling2D((2, 2)))
+    model.add(layers.Conv2D(64, (3,3), activation='relu'))
+    model.add(layers.MaxPooling2D((2, 2)))
+
+    model.add(layers.Flatten())
+    model.add(layers.Dense(64, activation='sigmoid'))
+    model.add(layers.Dense(NUM_CLASSES))
+    return model
+
+train_ds, val_ds, test_ds = create_data()
+
+model = create_model()
 
 model.summary()
 
@@ -155,14 +146,24 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LR),
               loss="binary_crossentropy",
               metrics=['accuracy'])
 
-STEP_SIZE_TRAIN=TRAIN_SIZE//BATCH_SIZE
-STEP_SIZE_VALID=VAL_SIZE//BATCH_SIZE
-#STEP_SIZE_TEST=test_generator.n//test_generator.batch_size
+STEP_SIZE_TRAIN = (DATASET_SIZE * TRAIN_FRAC) // BATCH_SIZE
+STEP_SIZE_VALID = (DATASET_SIZE * VAL_FRAC) // BATCH_SIZE
+STEP_SIZE_TEST = (DATASET_SIZE * TEST_FRAC) // BATCH_SIZE
+
 history = model.fit(train_ds,
                     steps_per_epoch=STEP_SIZE_TRAIN, 
-                    validation_data=test_ds,
+                    validation_data=val_ds,
                     validation_steps=STEP_SIZE_VALID,
                     epochs=NUM_EPOCHS,
-                    shuffle=True)
-                    #use_multiprocessing=True,
-                    #workers=8)
+                    shuffle=True,
+                    use_multiprocessing=True,
+                    workers=8)
+
+preds = model.predict(test_ds, 
+                      steps=STEP_SIZE_TEST,
+                      batch_size=BATCH_SIZE,
+                      verbose=1,
+                      use_multiprocessing=True,
+                      workers=8)
+
+# Plot stuff here
