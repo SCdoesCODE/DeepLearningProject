@@ -42,8 +42,8 @@ NUM_EPOCHS = 10
 NUM_CLASSES = len(classes)
 DATASET_SIZE = len(names_and_labels.index)
 SHUFFLE_BUFFER_SIZE = 1024
-IMG_HEIGHT = 128
-IMG_WIDTH = 128
+IMG_HEIGHT = 256
+IMG_WIDTH = 256
 
 train_dir = "/home/emil.elmarsson/nih-chest-xrays/images/"
 
@@ -72,9 +72,9 @@ validation_generator = train_datagen.flow_from_dataframe(
 
 # Create the model
 model = Sequential()
-model.add(layers.Conv2D(16, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,1)))
+model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,1)))
 model.add(layers.MaxPooling2D((2, 2)))
-model.add(layers.Conv2D(32, (3,3), activation='relu'))
+model.add(layers.Conv2D(64, (3,3), activation='relu'))
 model.add(layers.MaxPooling2D((2, 2)))
 model.add(layers.Conv2D(64, (3,3), activation='relu'))
 model.add(layers.MaxPooling2D((2, 2)))
@@ -89,12 +89,14 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LR),
               loss="categorical_crossentropy",
               metrics=['accuracy'])
 
-#STEP_SIZE_TRAIN=train_generator.n//train_generator.batch_size
-#STEP_SIZE_VALID=validation_generator.n//validation_generator.batch_size
+STEP_SIZE_TRAIN=train_generator.n//train_generator.batch_size
+STEP_SIZE_VALID=validation_generator.n//validation_generator.batch_size
 #STEP_SIZE_TEST=test_generator.n//test_generator.batch_size
 history = model.fit(train_generator,
-                    #steps_per_epoch=STEP_SIZE_TRAIN, 
+                    steps_per_epoch=STEP_SIZE_TRAIN, 
                     validation_data=validation_generator,
-                    #validation_steps=STEP_SIZE_VALID,
+                    validation_steps=STEP_SIZE_VALID,
                     batch_size=BATCH_SIZE,
-                    epochs=NUM_EPOCHS)
+                    epochs=NUM_EPOCHS,
+                    use_multiprocessing=True,
+                    workers=8)
