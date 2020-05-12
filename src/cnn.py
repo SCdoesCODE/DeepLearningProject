@@ -74,7 +74,7 @@ IMG_WIDTH = 256
 def decode_img(img):
     # convert compressed string to a uint8 tensor
     img = tf.image.decode_png(img, channels=1)
-    # convert to floats in range [0,1]
+    # convert color values to floats in range [0,1]
     img = tf.image.convert_image_dtype(img, tf.float32)
     # resize image
     return tf.image.resize(img, [IMG_HEIGHT, IMG_WIDTH])
@@ -192,4 +192,22 @@ preds = model.predict(test_ds,
                       use_multiprocessing=True,
                       workers=8)
 
-# Plot stuff here
+fig, axes = plt.subplots(1,2,figsize=(8,5))
+
+# Plot history for accuracy
+axes[0].plot(history.history['accuracy'])
+axes[0].plot(history.history['val_accuracy'])
+axes[0].set_title('model accuracy')
+axes[0].set_ylabel('accuracy')
+axes[0].set_xlabel('epoch')
+axes[0].legend(['train', 'test'], loc='upper left')
+
+# Plot history for loss
+axes[1].plot(history.history['loss'])
+axes[1].plot(history.history['val_loss'])
+axes[1].set_title('model loss')
+axes[1].set_ylabel('loss')
+axes[1].set_xlabel('epoch')
+axes[1].legend(['train', 'test'], loc='upper left')
+
+plt.show()
