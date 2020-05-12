@@ -20,6 +20,7 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D
 import logging
 
 # For suppressing annoying log messages
+'''
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # FATAL
 logging.getLogger('tensorflow').setLevel(logging.FATAL)
 
@@ -35,6 +36,7 @@ def set_tf_loglevel(level):
     logging.getLogger('tensorflow').setLevel(level)
 
 set_tf_loglevel(logging.FATAL)
+'''
 
 # The class names (diseases) of the model
 classes=[]
@@ -61,15 +63,12 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 LR = 0.0001
 BATCH_SIZE = 32
-NUM_EPOCHS = 10
+NUM_EPOCHS = 5
 NUM_CLASSES = len(classes)
 DATASET_SIZE = len(names_and_labels.index)
 TRAIN_FRAC = 0.6
 VAL_FRAC = 0.2
 TEST_FRAC = 0.2
-TRAIN_SIZE = 0
-VAL_SIZE = 0
-TEST_SIZE = 0
 SHUFFLE_BUFFER_SIZE = 1024
 IMG_HEIGHT = 256
 IMG_WIDTH = 256
@@ -89,6 +88,7 @@ def process_path(img_path):
     return img
 
 def prepare_dataset(dataset):
+    dataset = dataset.shuffle(SHUFFLE_BUFFER_SIZE)
     dataset = dataset.batch(BATCH_SIZE)
     dataset = dataset.prefetch(buffer_size=AUTOTUNE)
     return dataset
@@ -116,15 +116,6 @@ def create_data():
 
     # Splitting the indices based on the fractions given to each dataset
     [train_indices,val_indices,test_indices] = np.split(file_indices, [int(DATASET_SIZE*TRAIN_FRAC), int(DATASET_SIZE*(TRAIN_FRAC+VAL_FRAC))])
-
-    train_indices = np.delete(train_indices, np.s_[(len(train_indices) // BATCH_SIZE) * BATCH_SIZE:])
-    val_indices = np.delete(val_indices, np.s_[(len(val_indices) // BATCH_SIZE) * BATCH_SIZE:])
-    test_indices = np.delete(test_indices, np.s_[(len(test_indices) // BATCH_SIZE) * BATCH_SIZE:])
-
-    global TRAIN_SIZE, VAL_SIZE, TEST_SIZE
-    TRAIN_SIZE = len(train_indices)
-    VAL_SIZE = len(val_indices)
-    TEST_SIZE = len(test_indices)
 
     # Getting the filenames from the file indices
     train_names = names_and_labels.iloc[train_indices]['Image Index'].to_numpy()
@@ -183,25 +174,24 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_best_only=True)
 
 # Step sizes
-STEP_SIZE_TRAIN = int(TRAIN_SIZE // BATCH_SIZE)
-STEP_SIZE_VALID = int(VAL_SIZE // BATCH_SIZE)
-STEP_SIZE_TEST = int(TEST_SIZE // BATCH_SIZE)
+STEP_SIZE_TRAIN = int((DATASET_SIZE * TRAIN_FRAC) // BATCH_SIZE)
+STEP_SIZE_VALID = int((DATASET_SIZE * VAL_FRAC) // BATCH_SIZE)
+STEP_SIZE_TEST = int((DATASET_SIZE * TEST_FRAC) // BATCH_SIZE)
 
 # Fitting
 history = model.fit(train_ds,
-                    steps_per_epoch=STEP_SIZE_TRAIN, 
+                    #steps_per_epoch=STEP_SIZE_TRAIN, 
                     validation_data=val_ds,
-                    validation_steps=STEP_SIZE_VALID,
+                    #validation_steps=STEP_SIZE_VALID,
                     epochs=NUM_EPOCHS,
                     callbacks=[cp_callback])
 
+test_ds = prepare_dataset(test_ds)
+
 # Predicting test data
 preds = model.predict(test_ds, 
-                      steps=STEP_SIZE_TEST,
-                      batch_size=BATCH_SIZE,
-                      verbose=1,
-                      use_multiprocessing=True,
-                      workers=8)
+                      #steps=STEP_SIZE_TEST,
+                      verbose=1)
 
 fig, axes = plt.subplots(1,2,figsize=(8,5))
 
