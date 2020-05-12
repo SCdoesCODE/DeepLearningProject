@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.random import default_rng
-from google.cloud import storage
+#from google.cloud import storage
 #import matplotlib.pyplot as plt
 import time
 import glob
@@ -60,13 +60,16 @@ init()
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 LR = 0.0001
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 NUM_EPOCHS = 10
 NUM_CLASSES = len(classes)
 DATASET_SIZE = len(names_and_labels.index)
 TRAIN_FRAC = 0.6
 VAL_FRAC = 0.2
 TEST_FRAC = 0.2
+TRAIN_SIZE = 0
+VAL_SIZE = 0
+TEST_SIZE = 0
 SHUFFLE_BUFFER_SIZE = 1024
 IMG_HEIGHT = 256
 IMG_WIDTH = 256
@@ -114,6 +117,15 @@ def create_data():
     # Splitting the indices based on the fractions given to each dataset
     [train_indices,val_indices,test_indices] = np.split(file_indices, [int(DATASET_SIZE*TRAIN_FRAC), int(DATASET_SIZE*(TRAIN_FRAC+VAL_FRAC))])
 
+    train_indices = np.delete(train_indices, np.s_[(len(train_indices) // BATCH_SIZE) * BATCH_SIZE:])
+    val_indices = np.delete(val_indices, np.s_[(len(val_indices) // BATCH_SIZE) * BATCH_SIZE:])
+    test_indices = np.delete(test_indices, np.s_[(len(test_indices) // BATCH_SIZE) * BATCH_SIZE:])
+
+    global TRAIN_SIZE, VAL_SIZE, TEST_SIZE
+    TRAIN_SIZE = len(train_indices)
+    VAL_SIZE = len(val_indices)
+    TEST_SIZE = len(test_indices)
+
     # Getting the filenames from the file indices
     train_names = names_and_labels.iloc[train_indices]['Image Index'].to_numpy()
     val_names = names_and_labels.iloc[val_indices]['Image Index'].to_numpy()
@@ -126,9 +138,9 @@ def create_data():
     test_paths = name_to_path(test_names)
 
     # Mapping the filepaths to images
-    train_images = tf.data.Dataset.from_tensor_slices(train_paths).map(process_path)
-    val_images = tf.data.Dataset.from_tensor_slices(val_paths).map(process_path)
-    test_images = tf.data.Dataset.from_tensor_slices(test_paths).map(process_path)
+    train_images = tf.data.Dataset.from_tensor_slices(train_paths).map(process_path, num_parallel_calls=AUTOTUNE)
+    val_images = tf.data.Dataset.from_tensor_slices(val_paths).map(process_path, num_parallel_calls=AUTOTUNE)
+    test_images = tf.data.Dataset.from_tensor_slices(test_paths).map(process_path, num_parallel_calls=AUTOTUNE)
 
     # Mapping the filenames to labels
     train_labels = tf.data.Dataset.from_tensor_slices(one_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(train_names)]['Finding Labels'].to_numpy()))
@@ -171,9 +183,9 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_best_only=True)
 
 # Step sizes
-STEP_SIZE_TRAIN = int((DATASET_SIZE * TRAIN_FRAC) // BATCH_SIZE)
-STEP_SIZE_VALID = int((DATASET_SIZE * VAL_FRAC) // BATCH_SIZE)
-STEP_SIZE_TEST = int((DATASET_SIZE * TEST_FRAC) // BATCH_SIZE)
+STEP_SIZE_TRAIN = int(TRAIN_SIZE // BATCH_SIZE)
+STEP_SIZE_VALID = int(VAL_SIZE // BATCH_SIZE)
+STEP_SIZE_TEST = int(TEST_SIZE // BATCH_SIZE)
 
 # Fitting
 history = model.fit(train_ds,
@@ -181,7 +193,6 @@ history = model.fit(train_ds,
                     validation_data=val_ds,
                     validation_steps=STEP_SIZE_VALID,
                     epochs=NUM_EPOCHS,
-                    shuffle=True,
                     callbacks=[cp_callback])
 
 # Predicting test data
