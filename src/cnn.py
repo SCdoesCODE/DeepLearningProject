@@ -17,8 +17,28 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten
 from tensorflow.keras.layers import Conv2D, MaxPooling2D
+import logging
 
+# For suppressing annoying log messages
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # FATAL
+logging.getLogger('tensorflow').setLevel(logging.FATAL)
+
+def set_tf_loglevel(level):
+    if level >= logging.FATAL:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    if level >= logging.ERROR:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+    if level >= logging.WARNING:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+    else:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
+    logging.getLogger('tensorflow').setLevel(level)
+
+set_tf_loglevel(logging.FATAL)
+
+# The class names (diseases) of the model
 classes=[]
+# CSV object
 names_and_labels=[]
 
 # Loading all labels from the CSV file
@@ -71,10 +91,10 @@ def prepare_dataset(dataset):
     return dataset
 
 # Takes an array of label names and returns the one-hot encoding label
-def one_hot_representation(labels):
+def one_hot_encoding(label_names):
     one_hot = np.zeros(NUM_CLASSES)
-    for label in labels:
-        index = classes.index(label)
+    for label_name in label_names:
+        index = classes.index(label_name)
         one_hot[index] = 1
     return one_hot
 
@@ -82,7 +102,7 @@ def one_hot_representation(labels):
 def one_hot_encode_labels(labels):
     new_labels = np.zeros((len(labels), NUM_CLASSES))
     for i,label in enumerate(labels):
-        new_labels[i] = one_hot_representation(label)
+        new_labels[i] = one_hot_encoding(label)
     return new_labels
 
 def create_data():
@@ -139,26 +159,32 @@ def create_model():
 train_ds, val_ds, test_ds = create_data()
 
 model = create_model()
-
 model.summary()
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LR),
               loss="binary_crossentropy",
               metrics=['accuracy'])
 
-STEP_SIZE_TRAIN = (DATASET_SIZE * TRAIN_FRAC) // BATCH_SIZE
-STEP_SIZE_VALID = (DATASET_SIZE * VAL_FRAC) // BATCH_SIZE
-STEP_SIZE_TEST = (DATASET_SIZE * TEST_FRAC) // BATCH_SIZE
+# Saving the best model every epoch (based on val loss)
+checkpoint_path = expanduser("~") + "/DeepLearningProject/models/nih_model.h5"
+cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
+                                                 save_best_only=True)
 
+# Step sizes
+STEP_SIZE_TRAIN = int((DATASET_SIZE * TRAIN_FRAC) // BATCH_SIZE)
+STEP_SIZE_VALID = int((DATASET_SIZE * VAL_FRAC) // BATCH_SIZE)
+STEP_SIZE_TEST = int((DATASET_SIZE * TEST_FRAC) // BATCH_SIZE)
+
+# Fitting
 history = model.fit(train_ds,
                     steps_per_epoch=STEP_SIZE_TRAIN, 
                     validation_data=val_ds,
                     validation_steps=STEP_SIZE_VALID,
                     epochs=NUM_EPOCHS,
                     shuffle=True,
-                    use_multiprocessing=True,
-                    workers=8)
+                    callbacks=[cp_callback])
 
+# Predicting test data
 preds = model.predict(test_ds, 
                       steps=STEP_SIZE_TEST,
                       batch_size=BATCH_SIZE,
