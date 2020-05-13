@@ -20,7 +20,6 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D
 import logging
 
 # For suppressing annoying log messages
-'''
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # FATAL
 logging.getLogger('tensorflow').setLevel(logging.FATAL)
 
@@ -36,7 +35,8 @@ def set_tf_loglevel(level):
     logging.getLogger('tensorflow').setLevel(level)
 
 set_tf_loglevel(logging.FATAL)
-'''
+
+HOME = expanduser("~")
 
 # The class names (diseases) of the model
 classes=[]
@@ -49,7 +49,7 @@ def init():
     global names_and_labels
 
     # Loading class names
-    classes = open("../resources/classes.txt").read().splitlines()
+    classes = open(HOME + "/DeepLearningProject/resources/classes.txt").read().splitlines()
 
     # Loading image names and the corresponding labels
     #names_and_labels = pandas.read_csv('~/nih-chext-xrays/Data_Entry_2017.csv', usecols=["Image Index", "Finding Labels"])
@@ -109,7 +109,7 @@ def one_hot_encode_labels(labels):
     return new_labels
 
 def create_data():
-    image_path = expanduser("~") + "/nih-chest-xrays/images/"
+    image_path = HOME + "/nih-chest-xrays/images/"
 
     # Random list of file indices to ensure that the distribution of the training, validation and test datasets varies over different runs
     file_indices = default_rng().choice(DATASET_SIZE, size=DATASET_SIZE, replace=False)
@@ -169,46 +169,20 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LR),
               metrics=['accuracy'])
 
 # Saving the best model every epoch (based on val loss)
-checkpoint_path = expanduser("~") + "/DeepLearningProject/models/nih_model.h5"
+checkpoint_path = HOME + "/DeepLearningProject/models/nih_model.h5"
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_best_only=True)
 
-# Step sizes
-STEP_SIZE_TRAIN = int((DATASET_SIZE * TRAIN_FRAC) // BATCH_SIZE)
-STEP_SIZE_VALID = int((DATASET_SIZE * VAL_FRAC) // BATCH_SIZE)
-STEP_SIZE_TEST = int((DATASET_SIZE * TEST_FRAC) // BATCH_SIZE)
+# Early stopping based on validation loss
+es_callback = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=3)
 
 # Fitting
-history = model.fit(train_ds,
-                    #steps_per_epoch=STEP_SIZE_TRAIN, 
+history = model.fit(train_ds, 
                     validation_data=val_ds,
-                    #validation_steps=STEP_SIZE_VALID,
                     epochs=NUM_EPOCHS,
-                    callbacks=[cp_callback])
+                    callbacks=[cp_callback, es_callback])
 
 test_ds = prepare_dataset(test_ds)
 
 # Predicting test data
-preds = model.predict(test_ds, 
-                      #steps=STEP_SIZE_TEST,
-                      verbose=1)
-
-fig, axes = plt.subplots(1,2,figsize=(8,5))
-
-# Plot history for accuracy
-axes[0].plot(history.history['accuracy'])
-axes[0].plot(history.history['val_accuracy'])
-axes[0].set_title('model accuracy')
-axes[0].set_ylabel('accuracy')
-axes[0].set_xlabel('epoch')
-axes[0].legend(['train', 'test'], loc='upper left')
-
-# Plot history for loss
-axes[1].plot(history.history['loss'])
-axes[1].plot(history.history['val_loss'])
-axes[1].set_title('model loss')
-axes[1].set_ylabel('loss')
-axes[1].set_xlabel('epoch')
-axes[1].legend(['train', 'test'], loc='upper left')
-
-plt.show()
+preds = model.predict(test_ds, verbose=1)
