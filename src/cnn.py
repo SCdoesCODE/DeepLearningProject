@@ -17,7 +17,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, Input
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, GlobalMaxPooling2D
-from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.applications import ResNet50, VGG16
 import logging
 
 # For suppressing annoying log messages
@@ -166,7 +166,7 @@ train_ds, val_ds, test_ds = create_data()
 #model = create_model()
 #model.summary()
 
-base_model = ResNet50(include_top=False)
+base_model = VGG16(include_top=False)
 
 model = base_model.output
 model = GlobalMaxPooling2D()(model)
@@ -199,4 +199,4 @@ history = model.fit(train_ds,
 test_ds = prepare_dataset(test_ds)
 
 # Predicting test data
-preds = model.predict(test_ds, verbose=1)
+preds = model.evaluate(test_ds)
