@@ -64,7 +64,7 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 LR = 0.0001
 BATCH_SIZE = 32
-NUM_EPOCHS = 5
+NUM_EPOCHS = 30
 NUM_CLASSES = len(classes)
 DATASET_SIZE = len(names_and_labels.index)
 TRAIN_FRAC = 0.6
@@ -183,11 +183,9 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LR),
               metrics=['accuracy'])
 
 # Saving the best model every epoch (based on val loss)
-'''
 checkpoint_path = HOME + "/DeepLearningProject/models/nih_model.h5"
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
-                                                 save_best_only=True)
-'''                          
+                                                 save_best_only=True)                      
 
 # Early stopping based on validation loss
 es_callback = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=3)
