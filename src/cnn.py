@@ -14,9 +14,10 @@ import tensorflow as tf
 from tensorflow.keras import datasets, layers, models
 from tensorflow.keras.datasets import cifar10
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten
-from tensorflow.keras.layers import Conv2D, MaxPooling2D
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, Input
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, GlobalMaxPooling2D
+from tensorflow.keras.applications import ResNet50
 import logging
 
 # For suppressing annoying log messages
@@ -70,12 +71,13 @@ TRAIN_FRAC = 0.6
 VAL_FRAC = 0.2
 TEST_FRAC = 0.2
 SHUFFLE_BUFFER_SIZE = 1024
-IMG_HEIGHT = 256
-IMG_WIDTH = 256
+IMG_HEIGHT = 224
+IMG_WIDTH = 224
+CHANNELS = 3
 
 def decode_img(img):
     # convert compressed string to a uint8 tensor
-    img = tf.image.decode_png(img, channels=1)
+    img = tf.image.decode_png(img, channels=CHANNELS)
     # convert color values to floats in range [0,1]
     img = tf.image.convert_image_dtype(img, tf.float32)
     # resize image
@@ -147,7 +149,7 @@ def create_data():
 
 def create_model():
     model = Sequential()
-    model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,1)))
+    model.add(layers.Conv2D(32, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,CHANNELS)))
     model.add(layers.MaxPooling2D((2, 2)))
     model.add(layers.Conv2D(64, (3,3), activation='relu'))
     model.add(layers.MaxPooling2D((2, 2)))
@@ -161,17 +163,31 @@ def create_model():
 
 train_ds, val_ds, test_ds = create_data()
 
-model = create_model()
-model.summary()
+#model = create_model()
+#model.summary()
+
+base_model = ResNet50(include_top=False)
+
+model = base_model.output
+model = GlobalMaxPooling2D()(model)
+model = Dense(128, activation='relu')(model)
+predictions = Dense(NUM_CLASSES, activation='sigmoid')(model)
+
+model = Model(inputs=base_model.input, outputs=predictions)
+
+for layer in base_model.layers:
+    layer.trainable = False
 
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LR),
               loss="binary_crossentropy",
               metrics=['accuracy'])
 
 # Saving the best model every epoch (based on val loss)
+'''
 checkpoint_path = HOME + "/DeepLearningProject/models/nih_model.h5"
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_best_only=True)
+'''                          
 
 # Early stopping based on validation loss
 es_callback = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=3)
@@ -180,7 +196,7 @@ es_callback = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=3)
 history = model.fit(train_ds, 
                     validation_data=val_ds,
                     epochs=NUM_EPOCHS,
-                    callbacks=[cp_callback, es_callback])
+                    callbacks=[es_callback])
 
 test_ds = prepare_dataset(test_ds)
 
