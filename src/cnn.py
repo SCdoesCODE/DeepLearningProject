@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.random import default_rng
 #from google.cloud import storage
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import time
 import glob
 import os
@@ -89,8 +89,9 @@ def process_path(img_path):
     img = decode_img(img)
     return img
 
-def prepare_dataset(dataset):
-    dataset = dataset.shuffle(SHUFFLE_BUFFER_SIZE)
+def prepare_dataset(dataset, training=True):
+    if training:
+        dataset = dataset.shuffle(SHUFFLE_BUFFER_SIZE)
     dataset = dataset.batch(BATCH_SIZE)
     dataset = dataset.prefetch(buffer_size=AUTOTUNE)
     return dataset
@@ -108,7 +109,29 @@ def one_hot_encode_labels(labels):
     new_labels = np.zeros((len(labels), NUM_CLASSES))
     for i,label in enumerate(labels):
         new_labels[i] = one_hot_encoding(label)
-    return new_labels
+    return new_labels[:,1:]
+
+# For saving plots
+def save_plot(history):
+    fig, axes = plt.subplots(1,2,figsize=(8,5))
+
+    # Plot history for accuracy
+    axes[0].plot(history.history['acc'])
+    axes[0].plot(history.history['val_acc'])
+    axes[0].set_title('model accuracy')
+    axes[0].set_ylabel('accuracy')
+    axes[0].set_xlabel('epoch')
+    axes[0].legend(['train', 'test'], loc='upper left')
+
+    # Plot history for loss
+    axes[1].plot(history.history['loss'])
+    axes[1].plot(history.history['val_loss'])
+    axes[1].set_title('model loss')
+    axes[1].set_ylabel('loss')
+    axes[1].set_xlabel('epoch')
+    axes[1].legend(['train', 'test'], loc='upper left')
+
+    plt.savefig(HOME + '/DeepLearningProject/plots/plot.png')
 
 def create_data():
     image_path = HOME + "/nih-chest-xrays/images/"
@@ -155,10 +178,14 @@ def create_model():
     model.add(layers.MaxPooling2D((2, 2)))
     model.add(layers.Conv2D(64, (3,3), activation='relu'))
     model.add(layers.MaxPooling2D((2, 2)))
+    model.add(layers.Conv2D(64, (3,3), activation='relu'))
+    model.add(layers.MaxPooling2D((2, 2)))
+    model.add(layers.Conv2D(64, (3,3), activation='relu'))
+    model.add(layers.MaxPooling2D((2, 2)))
 
     model.add(layers.Flatten())
     model.add(layers.Dense(64, activation='sigmoid'))
-    model.add(layers.Dense(NUM_CLASSES))
+    model.add(layers.Dense(NUM_CLASSES-1))
     return model
 
 train_ds, val_ds, test_ds = create_data()
@@ -197,7 +224,14 @@ history = model.fit(train_ds,
                     epochs=NUM_EPOCHS,
                     callbacks=[cp_callback, es_callback])
 
-test_ds = prepare_dataset(test_ds)
+# Evaluating model
+test_ds = prepare_dataset(test_ds, training=False)
+model.evaluate(test_ds, verbose=1)
 
+<<<<<<< HEAD
 # Predicting test data
 preds = model.evaluate(test_ds)
+=======
+# Saving plot
+save_plot(history)
+>>>>>>> master
