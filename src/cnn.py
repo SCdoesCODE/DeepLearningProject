@@ -71,8 +71,8 @@ TRAIN_FRAC = 0.6
 VAL_FRAC = 0.2
 TEST_FRAC = 0.2
 SHUFFLE_BUFFER_SIZE = 1024
-IMG_HEIGHT = 224
-IMG_WIDTH = 224
+IMG_HEIGHT = 256
+IMG_WIDTH = 256
 CHANNELS = 3
 
 def decode_img(img):
@@ -193,12 +193,12 @@ train_ds, val_ds, test_ds = create_data()
 #model = create_model()
 #model.summary()
 
-base_model = VGG16(include_top=False)
+base_model = ResNet50(include_top=False, input_shape=(IMG_HEIGHT, IMG_HEIGHT, CHANNELS))
 
 model = base_model.output
 model = GlobalAveragePooling2D()(model)
-model = Dense(1024, activation='relu')(model)
-predictions = Dense(NUM_CLASSES, activation='sigmoid')(model)
+model = Dense(64, activation='relu')(model)
+predictions = Dense(NUM_CLASSES-1, activation='sigmoid')(model)
 
 model = Model(inputs=base_model.input, outputs=predictions)
 model.summary()
@@ -228,10 +228,5 @@ history = model.fit(train_ds,
 test_ds = prepare_dataset(test_ds, training=False)
 model.evaluate(test_ds, verbose=1)
 
-<<<<<<< HEAD
-# Predicting test data
-preds = model.evaluate(test_ds)
-=======
 # Saving plot
 save_plot(history)
->>>>>>> master
