@@ -14,7 +14,7 @@ import tensorflow as tf
 from tensorflow.keras import datasets, layers, models
 from tensorflow.keras.datasets import cifar10
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten
 from tensorflow.keras.layers import Conv2D, MaxPooling2D
 import logging
@@ -87,8 +87,9 @@ def process_path(img_path):
     img = decode_img(img)
     return img
 
-def prepare_dataset(dataset):
-    dataset = dataset.shuffle(SHUFFLE_BUFFER_SIZE)
+def prepare_dataset(dataset, training=True):
+    if training:
+        dataset = dataset.shuffle(SHUFFLE_BUFFER_SIZE)
     dataset = dataset.batch(BATCH_SIZE)
     dataset = dataset.prefetch(buffer_size=AUTOTUNE)
     return dataset
@@ -106,7 +107,7 @@ def one_hot_encode_labels(labels):
     new_labels = np.zeros((len(labels), NUM_CLASSES))
     for i,label in enumerate(labels):
         new_labels[i] = one_hot_encoding(label)
-    return new_labels
+    return new_labels[:,1:]
 
 def create_data():
     image_path = HOME + "/nih-chest-xrays/images/"
@@ -136,14 +137,15 @@ def create_data():
     # Mapping the filenames to labels
     train_labels = tf.data.Dataset.from_tensor_slices(one_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(train_names)]['Finding Labels'].to_numpy()))
     val_labels = tf.data.Dataset.from_tensor_slices(one_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(val_names)]['Finding Labels'].to_numpy()))
-    test_labels = tf.data.Dataset.from_tensor_slices(one_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(test_names)]['Finding Labels'].to_numpy()))
+    one_hot_encoded_test_labels = one_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(test_names)]['Finding Labels'].to_numpy())
+    test_labels = tf.data.Dataset.from_tensor_slices(one_hot_encoded_test_labels)
 
     # Preparing data for training
     train_ds = prepare_dataset(tf.data.Dataset.zip((train_images, train_labels)))
     val_ds = prepare_dataset(tf.data.Dataset.zip((val_images, val_labels)))
     test_ds = tf.data.Dataset.zip((test_images, test_labels))
 
-    return train_ds, val_ds, test_ds
+    return train_ds, val_ds, test_ds, one_hot_encoded_test_labels
 
 def create_model():
     model = Sequential()
@@ -156,10 +158,10 @@ def create_model():
 
     model.add(layers.Flatten())
     model.add(layers.Dense(64, activation='sigmoid'))
-    model.add(layers.Dense(NUM_CLASSES))
+    model.add(layers.Dense(NUM_CLASSES-1))
     return model
 
-train_ds, val_ds, test_ds = create_data()
+train_ds, val_ds, test_ds, test_labels = create_data()
 
 model = create_model()
 model.summary()
@@ -185,4 +187,11 @@ history = model.fit(train_ds,
 test_ds = prepare_dataset(test_ds)
 
 # Predicting test data
-preds = model.predict(test_ds, verbose=1)
+model.evaluate(test_ds, verbose=1)
+
+'''
+test_ds = prepare_dataset(test_ds, training=False)
+
+model = load_model("../models/3-layer.h5")
+assess_accuracy(model, test_ds, test_labels)
+'''
