@@ -16,7 +16,7 @@ from tensorflow.keras.datasets import cifar10
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, Input
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, GlobalMaxPooling2D
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, GlobalMaxPooling2D, GlobalAveragePooling2D
 from tensorflow.keras.applications import ResNet50, VGG16
 import logging
 
@@ -169,11 +169,12 @@ train_ds, val_ds, test_ds = create_data()
 base_model = VGG16(include_top=False)
 
 model = base_model.output
-model = GlobalMaxPooling2D()(model)
-model = Dense(128, activation='relu')(model)
+model = GlobalAveragePooling2D()(model)
+model = Dense(1024, activation='relu')(model)
 predictions = Dense(NUM_CLASSES, activation='sigmoid')(model)
 
 model = Model(inputs=base_model.input, outputs=predictions)
+model.summary()
 
 for layer in base_model.layers:
     layer.trainable = False
@@ -194,7 +195,7 @@ es_callback = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=3)
 history = model.fit(train_ds, 
                     validation_data=val_ds,
                     epochs=NUM_EPOCHS,
-                    callbacks=[es_callback])
+                    callbacks=[cp_callback, es_callback])
 
 test_ds = prepare_dataset(test_ds)
 
