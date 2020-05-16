@@ -12,6 +12,7 @@ import cv2
 import pandas
 import pickle
 import tensorflow as tf
+import tensorflow.keras.backend as K
 from sklearn.utils.class_weight import compute_sample_weight, compute_class_weight 
 from tensorflow.keras import datasets, layers, models
 from tensorflow.keras.datasets import cifar10
@@ -77,7 +78,7 @@ TEST_FRAC = 0.2
 SHUFFLE_BUFFER_SIZE = 1024
 IMG_HEIGHT = 256
 IMG_WIDTH = 256
-CHANNELS = 3
+CHANNELS = 1
 
 def decode_img(img):
     # convert compressed string to a uint8 tensor
@@ -165,9 +166,8 @@ def create_data():
     # Calculating class weights
     global class_weights
     train_labels = multi_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(train_names)]['Finding Labels'].to_numpy())
-    class_weights = np.sum(train_labels) / np.sum(train_labels, axis=0)
-    print(np.sum(train_labels, axis=0))
-    print(class_weights)
+    class_weights = np.sum(train_labels) / (NUM_CLASSES * np.sum(train_labels, axis=0))
+    print("Class weights:", class_weights)
 
     # Mapping the filenames to labels
     train_labels = tf.data.Dataset.from_tensor_slices(train_labels)
@@ -196,7 +196,6 @@ def create_model(metrics=METRICS, output_bias=None):
     if output_bias is not None:
         output_bias = tf.keras.initializers.Constant(output_bias)
     
-    '''
     model = Sequential()
     model.add(Conv2D(32, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,1)))
     model.add(MaxPooling2D((2, 2)))
@@ -208,8 +207,8 @@ def create_model(metrics=METRICS, output_bias=None):
     model.add(Flatten())
     model.add(Dense(64, activation='relu'))
     model.add(Dense(NUM_CLASSES, activation='sigmoid'))
-    '''
 
+    '''
     base_model = ResNet50(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS))
 
     model = base_model.output
@@ -221,10 +220,11 @@ def create_model(metrics=METRICS, output_bias=None):
 
     for layer in base_model.layers:
         layer.trainable = False
+    '''
 
     model.compile(optimizer='adam',
-              loss="binary_crossentropy",
-              metrics=metrics)
+                  loss="binary_crossentropy",
+                  metrics=metrics)
 
     return model
 
