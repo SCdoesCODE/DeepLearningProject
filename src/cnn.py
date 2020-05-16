@@ -78,7 +78,7 @@ TEST_FRAC = 0.2
 SHUFFLE_BUFFER_SIZE = 1024
 IMG_HEIGHT = 256
 IMG_WIDTH = 256
-CHANNELS = 1
+CHANNELS = 3
 
 def decode_img(img):
     # convert compressed string to a uint8 tensor
@@ -139,40 +139,60 @@ def save_plot(history):
     plt.savefig(HOME + '/DeepLearningProject/plots/plot.png')
 
 def create_data():
+    global DATASET_SIZE
     image_path = HOME + "/nih-chest-xrays/images/"
 
     # Random list of file indices to ensure that the distribution of the training, validation and test datasets varies over different runs
     file_indices = default_rng().choice(DATASET_SIZE, size=DATASET_SIZE, replace=False)
 
-    # Splitting the indices based on the fractions given to each dataset
-    [train_indices,val_indices,test_indices] = np.split(file_indices, [int(DATASET_SIZE*TRAIN_FRAC), int(DATASET_SIZE*(TRAIN_FRAC+VAL_FRAC))])
-
-    # Getting the filenames from the file indices
-    train_names = names_and_labels.iloc[train_indices]['Image Index'].to_numpy()
-    val_names = names_and_labels.iloc[val_indices]['Image Index'].to_numpy()
-    test_names = names_and_labels.iloc[test_indices]['Image Index'].to_numpy()
-
-    # Creating the full filepaths
+    image_names = names_and_labels.iloc[file_indices]['Image Index'].to_numpy()
     name_to_path = np.vectorize(lambda name: image_path + name)
-    train_paths = name_to_path(train_names)
-    val_paths = name_to_path(val_names)
-    test_paths = name_to_path(test_names)
+    image_paths = name_to_path(image_names)
+
+    labels = multi_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(image_names)]['Finding Labels'].to_numpy())
+
+    pos = []
+    neg = []
+    for i in range(DATASET_SIZE):
+        if labels[i][0] == 1:
+            neg.append((image_paths[i], labels[i]))
+        else:
+            pos.append((image_paths[i], labels[i]))
+
+    NEG_SIZE = 5000
+    neg = np.asarray(neg[0:NEG_SIZE])
+    pos = np.asarray(pos)
+
+    dataset = np.concatenate((neg, pos))
+    np.random.shuffle(dataset)
+
+    DATASET_SIZE = len(dataset)
+
+    # Splitting the data based on the fractions given to each dataset
+    [train_data,val_data,test_data] = np.split(dataset, [int(DATASET_SIZE*TRAIN_FRAC), int(DATASET_SIZE*(TRAIN_FRAC+VAL_FRAC))])
+
+    train_paths = train_data[:,0]
+    train_labels = np.stack(train_data[:,1])
+
+    val_paths = val_data[:,0]
+    val_labels = np.stack(val_data[:,1])
+
+    test_paths = test_data[:,0]
+    test_labels = np.stack(test_data[:,1])
+
+    # Calculating class weights
+    global class_weights
+    class_weights = np.sum(np.sum(train_labels)) / np.sum(train_labels, axis=0)
 
     # Mapping the filepaths to images
     train_images = tf.data.Dataset.from_tensor_slices(train_paths).map(process_path, num_parallel_calls=AUTOTUNE)
     val_images = tf.data.Dataset.from_tensor_slices(val_paths).map(process_path, num_parallel_calls=AUTOTUNE)
     test_images = tf.data.Dataset.from_tensor_slices(test_paths).map(process_path, num_parallel_calls=AUTOTUNE)
 
-    # Calculating class weights
-    global class_weights
-    train_labels = multi_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(train_names)]['Finding Labels'].to_numpy())
-    class_weights = np.sum(train_labels) / (NUM_CLASSES * np.sum(train_labels, axis=0))
-    print("Class weights:", class_weights)
-
-    # Mapping the filenames to labels
+    # Labels to tensors
     train_labels = tf.data.Dataset.from_tensor_slices(train_labels)
-    val_labels = tf.data.Dataset.from_tensor_slices(multi_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(val_names)]['Finding Labels'].to_numpy()))
-    test_labels = tf.data.Dataset.from_tensor_slices(multi_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(test_names)]['Finding Labels'].to_numpy()))
+    val_labels = tf.data.Dataset.from_tensor_slices(val_labels)
+    test_labels = tf.data.Dataset.from_tensor_slices(test_labels)
 
     # Preparing data for training
     train_ds = prepare_dataset(tf.data.Dataset.zip((train_images, train_labels)))
@@ -196,6 +216,7 @@ def create_model(metrics=METRICS, output_bias=None):
     if output_bias is not None:
         output_bias = tf.keras.initializers.Constant(output_bias)
     
+    '''
     model = Sequential()
     model.add(Conv2D(32, (3,3), activation='relu', input_shape=(IMG_HEIGHT,IMG_WIDTH,1)))
     model.add(MaxPooling2D((2, 2)))
@@ -207,8 +228,8 @@ def create_model(metrics=METRICS, output_bias=None):
     model.add(Flatten())
     model.add(Dense(64, activation='relu'))
     model.add(Dense(NUM_CLASSES, activation='sigmoid'))
-
     '''
+
     base_model = ResNet50(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS))
 
     model = base_model.output
@@ -220,7 +241,6 @@ def create_model(metrics=METRICS, output_bias=None):
 
     for layer in base_model.layers:
         layer.trainable = False
-    '''
 
     model.compile(optimizer='adam',
                   loss="binary_crossentropy",
