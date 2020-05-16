@@ -118,81 +118,76 @@ def multi_hot_encode_labels(labels):
 
 # For saving plots
 def save_plot(history):
-    fig, axes = plt.subplots(1,2,figsize=(8,5))
-
-    # Plot history for accuracy
-    axes[0].plot(history.history['acc'])
-    axes[0].plot(history.history['val_acc'])
-    axes[0].set_title('model accuracy')
-    axes[0].set_ylabel('accuracy')
-    axes[0].set_xlabel('epoch')
-    axes[0].legend(['train', 'test'], loc='upper left')
+    fig, axes = plt.subplots(2,2,figsize=(10,10))
 
     # Plot history for loss
-    axes[1].plot(history.history['loss'])
-    axes[1].plot(history.history['val_loss'])
-    axes[1].set_title('model loss')
-    axes[1].set_ylabel('loss')
-    axes[1].set_xlabel('epoch')
-    axes[1].legend(['train', 'test'], loc='upper left')
+    axes[0,0].plot(history.history['loss'])
+    axes[0,0].plot(history.history['val_loss'], linestyle='--', color='b')
+    axes[0,0].set_title('model loss')
+    axes[0,0].set_ylabel('loss')
+    axes[0,0].set_xlabel('epoch')
+    axes[0,0].legend(['train', 'val'], loc='upper right')
+
+    # Plot history for AUC
+    axes[0,1].plot(history.history['auc'])
+    axes[0,1].plot(history.history['val_auc'], linestyle='--', color='b')
+    axes[0,1].set_title('model AUC')
+    axes[0,1].set_ylabel('accuracy')
+    axes[0,1].set_xlabel('epoch')
+    axes[0,1].legend(['train', 'val'], loc='lower right')
+
+    # Plot history for precision
+    axes[1,0].plot(history.history['precision'])
+    axes[1,0].plot(history.history['val_precision'], linestyle='--', color='b')
+    axes[1,0].set_title('model precision')
+    axes[1,0].set_ylabel('precision')
+    axes[1,0].set_xlabel('epoch')
+    axes[1,0].legend(['train', 'val'], loc='upper right')
+
+    # Plot history for recall
+    axes[1,1].plot(history.history['recall'])
+    axes[1,1].plot(history.history['val_recall'], linestyle='--', color='b')
+    axes[1,1].set_title('model recall')
+    axes[1,1].set_ylabel('recall')
+    axes[1,1].set_xlabel('epoch')
+    axes[1,1].legend(['train', 'val'], loc='lower left')
 
     plt.savefig(HOME + '/DeepLearningProject/plots/plot.png')
 
 def create_data():
-    global DATASET_SIZE
     image_path = HOME + "/nih-chest-xrays/images/"
 
     # Random list of file indices to ensure that the distribution of the training, validation and test datasets varies over different runs
     file_indices = default_rng().choice(DATASET_SIZE, size=DATASET_SIZE, replace=False)
 
-    image_names = names_and_labels.iloc[file_indices]['Image Index'].to_numpy()
+    # Splitting the indices based on the fractions given to each dataset
+    [train_indices,val_indices,test_indices] = np.split(file_indices, [int(DATASET_SIZE*TRAIN_FRAC), int(DATASET_SIZE*(TRAIN_FRAC+VAL_FRAC))])
+
+    # Getting the filenames from the file indices
+    train_names = names_and_labels.iloc[train_indices]['Image Index'].to_numpy()
+    val_names = names_and_labels.iloc[val_indices]['Image Index'].to_numpy()
+    test_names = names_and_labels.iloc[test_indices]['Image Index'].to_numpy()
+
+    # Creating the full filepaths
     name_to_path = np.vectorize(lambda name: image_path + name)
-    image_paths = name_to_path(image_names)
-
-    labels = multi_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(image_names)]['Finding Labels'].to_numpy())
-
-    pos = []
-    neg = []
-    for i in range(DATASET_SIZE):
-        if labels[i][0] == 1:
-            neg.append((image_paths[i], labels[i]))
-        else:
-            pos.append((image_paths[i], labels[i]))
-
-    NEG_SIZE = 5000
-    neg = np.asarray(neg[0:NEG_SIZE])
-    pos = np.asarray(pos)
-
-    dataset = np.concatenate((neg, pos))
-    np.random.shuffle(dataset)
-
-    DATASET_SIZE = len(dataset)
-
-    # Splitting the data based on the fractions given to each dataset
-    [train_data,val_data,test_data] = np.split(dataset, [int(DATASET_SIZE*TRAIN_FRAC), int(DATASET_SIZE*(TRAIN_FRAC+VAL_FRAC))])
-
-    train_paths = train_data[:,0]
-    train_labels = np.stack(train_data[:,1])
-
-    val_paths = val_data[:,0]
-    val_labels = np.stack(val_data[:,1])
-
-    test_paths = test_data[:,0]
-    test_labels = np.stack(test_data[:,1])
-
-    # Calculating class weights
-    global class_weights
-    class_weights = np.sum(np.sum(train_labels)) / np.sum(train_labels, axis=0)
+    train_paths = name_to_path(train_names)
+    val_paths = name_to_path(val_names)
+    test_paths = name_to_path(test_names)
 
     # Mapping the filepaths to images
     train_images = tf.data.Dataset.from_tensor_slices(train_paths).map(process_path, num_parallel_calls=AUTOTUNE)
     val_images = tf.data.Dataset.from_tensor_slices(val_paths).map(process_path, num_parallel_calls=AUTOTUNE)
     test_images = tf.data.Dataset.from_tensor_slices(test_paths).map(process_path, num_parallel_calls=AUTOTUNE)
 
-    # Labels to tensors
+    # Calculating class weights
+    global class_weights
+    train_labels = multi_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(train_names)]['Finding Labels'].to_numpy())
+    class_weights = np.sum(train_labels) / np.sum(train_labels, axis=0)
+
+    # Mapping the filenames to labels
     train_labels = tf.data.Dataset.from_tensor_slices(train_labels)
-    val_labels = tf.data.Dataset.from_tensor_slices(val_labels)
-    test_labels = tf.data.Dataset.from_tensor_slices(test_labels)
+    val_labels = tf.data.Dataset.from_tensor_slices(multi_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(val_names)]['Finding Labels'].to_numpy()))
+    test_labels = tf.data.Dataset.from_tensor_slices(multi_hot_encode_labels(names_and_labels[names_and_labels['Image Index'].isin(test_names)]['Finding Labels'].to_numpy()))
 
     # Preparing data for training
     train_ds = prepare_dataset(tf.data.Dataset.zip((train_images, train_labels)))
@@ -273,4 +268,4 @@ test_ds = prepare_dataset(test_ds, training=False)
 model.evaluate(test_ds, verbose=1)
 
 # Saving plot
-#save_plot(history)
+save_plot(history)
