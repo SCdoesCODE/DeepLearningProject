@@ -21,7 +21,7 @@ from tensorflow.keras.models import Sequential, load_model, Model
 from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, GlobalMaxPooling2D, GlobalAveragePooling2D
 from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
-from tensorflow.keras.applications import ResNet50, VGG16
+from tensorflow.keras.applications import ResNet50, VGG16, VGG19, MobileNet, MobileNetV2
 import logging
 
 # For suppressing annoying log messages
@@ -117,7 +117,7 @@ def multi_hot_encode_labels(labels):
     return new_labels
 
 # For saving plots
-def save_plot(history):
+def save_plot(history, plot_name):
     fig, axes = plt.subplots(2,2,figsize=(10,10))
 
     # Plot history for loss
@@ -152,7 +152,7 @@ def save_plot(history):
     axes[1,1].set_xlabel('epoch')
     axes[1,1].legend(['train', 'val'], loc='lower left')
 
-    plt.savefig(HOME + '/DeepLearningProject/plots/plot.png')
+    plt.savefig(HOME + '/DeepLearningProject/plots/' + plot_name + '.png')
 
 def create_data():
     image_path = HOME + "/nih-chest-xrays/images/"
@@ -225,47 +225,59 @@ def create_model(metrics=METRICS, output_bias=None):
     model.add(Dense(NUM_CLASSES, activation='sigmoid'))
     '''
 
-    base_model = ResNet50(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS))
+    models = []
+    base_models = [ResNet50(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS)),
+                   VGG16(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS)),
+                   MobileNet(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS)),
+                   VGG19(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS)),
+                   MobileNetV2(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS))]
 
-    model = base_model.output
-    model = GlobalAveragePooling2D()(model)
-    model = Dense(64, activation='relu')(model)
-    predictions = Dense(NUM_CLASSES, activation='sigmoid')(model)
+    for i in range(len(base_models)):
+        base_model = base_models[i]
 
-    model = Model(inputs=base_model.input, outputs=predictions)
+        model = base_model.output
+        model = GlobalAveragePooling2D()(model)
+        model = Dense(64, activation='relu')(model)
+        predictions = Dense(NUM_CLASSES, activation='sigmoid')(model)
 
-    for layer in base_model.layers:
-        layer.trainable = False
+        model = Model(inputs=base_model.input, outputs=predictions)
 
-    model.compile(optimizer='adam',
-                  loss="binary_crossentropy",
-                  metrics=metrics)
+        for layer in base_model.layers:
+            layer.trainable = False
 
-    return model
+        model.compile(optimizer='adam',
+                    loss="binary_crossentropy",
+                    metrics=metrics)
+
+        models.append(model)
+
+    return models
 
 train_ds, val_ds, test_ds = create_data()
 
-model = create_model()
-model.summary()
+models = create_model()
 
-# Saving the best model every epoch (based on val loss)
-checkpoint_path = HOME + "/DeepLearningProject/models/nih_model.h5"
-cp_callback = ModelCheckpoint(filepath=checkpoint_path,
-                              save_best_only=True)
+model_names = ["ResNet50", "VGG16", "MobileNet", "VGG19", "MobileNetV2"]
 
-# Early stopping based on AUC
-es_callback = EarlyStopping(monitor="val_auc", patience=5, mode='max', restore_best_weights=True)
+for i, model in enumerate(models):
+    # Saving the best model every epoch (based on val loss)
+    checkpoint_path = HOME + "/DeepLearningProject/models/" + model_names[i] + ".h5"
+    cp_callback = ModelCheckpoint(filepath=checkpoint_path,
+                                save_best_only=True)
 
-# Fitting
-history = model.fit(train_ds, 
-                    validation_data=val_ds,
-                    epochs=NUM_EPOCHS,
-                    callbacks=[cp_callback, es_callback],
-                    class_weight=class_weights)
+    # Early stopping based on AUC
+    es_callback = EarlyStopping(monitor="val_auc", patience=5, mode='max', restore_best_weights=True)
 
-# Evaluating model
-test_ds = prepare_dataset(test_ds, training=False)
-model.evaluate(test_ds, verbose=1)
+    # Fitting
+    history = model.fit(train_ds, 
+                        validation_data=val_ds,
+                        epochs=NUM_EPOCHS,
+                        callbacks=[cp_callback, es_callback],
+                        class_weight=class_weights)
 
-# Saving plot
-save_plot(history)
+    # Evaluating model
+    #test_ds = prepare_dataset(test_ds, training=False)
+    #model.evaluate(test_ds, verbose=1)
+
+    # Saving plot
+    save_plot(history, model_names[i])
