@@ -132,7 +132,7 @@ def save_plot(history, plot_name):
     axes[0,1].plot(history.history['auc'])
     axes[0,1].plot(history.history['val_auc'], linestyle='--', color='b')
     axes[0,1].set_title('model AUC')
-    axes[0,1].set_ylabel('accuracy')
+    axes[0,1].set_ylabel('auc')
     axes[0,1].set_xlabel('epoch')
     axes[0,1].legend(['train', 'val'], loc='lower right')
 
@@ -197,14 +197,14 @@ def create_data():
     return train_ds, val_ds, test_ds
 
 METRICS = [
-    tf.keras.metrics.TruePositives(name='tp'),
-    tf.keras.metrics.FalsePositives(name='fp'),
-    tf.keras.metrics.TrueNegatives(name='tn'),
-    tf.keras.metrics.FalseNegatives(name='fn'), 
-    tf.keras.metrics.BinaryAccuracy(name='accuracy'),
-    tf.keras.metrics.Precision(name='precision'),
-    tf.keras.metrics.AUC(name='auc'),
-    tf.keras.metrics.Recall(name='recall'),
+    tf.keras.metrics.TruePositives(name='tp', thresholds=0.1),
+    tf.keras.metrics.FalsePositives(name='fp', thresholds=0.1),
+    tf.keras.metrics.TrueNegatives(name='tn', thresholds=0.1),
+    tf.keras.metrics.FalseNegatives(name='fn', thresholds=0.1), 
+    tf.keras.metrics.BinaryAccuracy(name='accuracy', threshold=0.1),
+    tf.keras.metrics.Precision(name='precision', thresholds=0.1),
+    tf.keras.metrics.AUC(name='auc', thresholds=[0.1]),
+    tf.keras.metrics.Recall(name='recall', thresholds=0.1),
 ]
 
 def create_model(metrics=METRICS, output_bias=None):
@@ -222,62 +222,53 @@ def create_model(metrics=METRICS, output_bias=None):
     
     model.add(Flatten())
     model.add(Dense(64, activation='relu'))
+    model.add(Dropout(0.5))
     model.add(Dense(NUM_CLASSES, activation='sigmoid'))
     '''
 
-    models = []
-    base_models = [ResNet50(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS)),
-                   VGG16(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS)),
-                   MobileNet(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS)),
-                   VGG19(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS)),
-                   MobileNetV2(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS))]
+    base_model = VGG16(include_top=False, input_shape=(IMG_HEIGHT, IMG_WIDTH, CHANNELS))
 
-    for i in range(len(base_models)):
-        base_model = base_models[i]
+    model = base_model.output
+    model = GlobalAveragePooling2D()(model)
+    model = Dense(64, activation='relu')(model)
+    model = Dropout(0.5)(model)
+    predictions = Dense(NUM_CLASSES, activation='sigmoid')(model)
 
-        model = base_model.output
-        model = GlobalAveragePooling2D()(model)
-        model = Dense(64, activation='relu')(model)
-        predictions = Dense(NUM_CLASSES, activation='sigmoid')(model)
+    model = Model(inputs=base_model.input, outputs=predictions)
 
-        model = Model(inputs=base_model.input, outputs=predictions)
+    for layer in model.layers[:15]:
+        layer.trainable = False
+    for layer in model.layers[15:]:
+        layer.trainable = True
 
-        for layer in base_model.layers:
-            layer.trainable = False
+    model.compile(optimizer='adam',
+                  loss="binary_crossentropy",
+                  metrics=metrics)
 
-        model.compile(optimizer='adam',
-                    loss="binary_crossentropy",
-                    metrics=metrics)
-
-        models.append(model)
-
-    return models
+    return model
 
 train_ds, val_ds, test_ds = create_data()
 
-models = create_model()
+model = create_model()
 
-model_names = ["ResNet50", "VGG16", "MobileNet", "VGG19", "MobileNetV2"]
+# Saving the best model every epoch (based on val loss)
+checkpoint_path = HOME + "/DeepLearningProject/models/VGG16_dropout.h5"
+cp_callback = ModelCheckpoint(filepath=checkpoint_path,
+                            save_best_only=True)
 
-for i, model in enumerate(models):
-    # Saving the best model every epoch (based on val loss)
-    checkpoint_path = HOME + "/DeepLearningProject/models/" + model_names[i] + ".h5"
-    cp_callback = ModelCheckpoint(filepath=checkpoint_path,
-                                save_best_only=True)
+# Early stopping based on AUC
+es_callback = EarlyStopping(monitor="val_auc", patience=5, mode='max', restore_best_weights=True)
 
-    # Early stopping based on AUC
-    es_callback = EarlyStopping(monitor="val_auc", patience=5, mode='max', restore_best_weights=True)
+# Fitting
+history = model.fit(train_ds, 
+                    validation_data=val_ds,
+                    epochs=NUM_EPOCHS,
+                    callbacks=[cp_callback, es_callback],
+                    class_weight=class_weights)
 
-    # Fitting
-    history = model.fit(train_ds, 
-                        validation_data=val_ds,
-                        epochs=NUM_EPOCHS,
-                        callbacks=[cp_callback, es_callback],
-                        class_weight=class_weights)
+# Evaluating model
+#test_ds = prepare_dataset(test_ds, training=False)
+#model.evaluate(test_ds, verbose=1)
 
-    # Evaluating model
-    #test_ds = prepare_dataset(test_ds, training=False)
-    #model.evaluate(test_ds, verbose=1)
-
-    # Saving plot
-    save_plot(history, model_names[i])
+# Saving plot
+save_plot(history, 'VGG16_dropout')
